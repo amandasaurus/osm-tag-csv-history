@@ -57,5 +57,5 @@ The following other tools might be useful:
 ## Misc
 
 Copyright 2020, GNU Affero General Public Licence (AGPL) v3 or later. See [LICENCE.txt](./LICENCE.txt).
-Source code is on [Sourcehut](https://git.sr.ht/~ebel/osm-tag-csv-history)
+Source code is on [Sourcehut](https://git.sr.ht/~ebel/osm-tag-csv-history), and [Github](https://github.com/rory/osm-tag-csv-history).
 
