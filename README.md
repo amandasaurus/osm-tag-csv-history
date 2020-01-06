@@ -12,6 +12,14 @@ data file with history.
 
 Geofabrik provides an [download service](https://osm-internal.download.geofabrik.de/) which includes full history files for lots of regions & countries. You must log into that with your OpenStreetMap account.
 
+## Installation
+
+If you have Rust installed, you can install it with:
+
+    cargo install osm-tag-csv-history
+
+You can download prebuild binary released from the [Github release page](https://github.com/rory/osm-tag-csv-history/releases), (e.g. [download the v0.1.0 release](https://github.com/rory/osm-tag-csv-history/releases/download/v0.1.0/osm-tag-csv-history)).
+
 ## Usage
 
     osm-tag-csv-history -i mydata.osm.pbf -o mydata.csv
@@ -45,6 +53,73 @@ can be turned off with `--no-header` (or forcibly included with `--header`).
   can change their username, UIDs remain constant)
 * `uid` The user id of the user.
 * `changeset_id` Changeset id where this change was made
+
+### Example
+
+Imagine this simple 
+
+```xml
+<?xml version='1.0' encoding='UTF-8'?>
+<osm version="0.6" generator="osmium/1.7.1">
+  <node id="1" version="1" timestamp="2019-01-01T00:00:00Z" lat="0.0" lon="0.0" user="Alice" uid="12" changeset="2">
+      <tag k="place" v="city"/>
+      <tag k="name" v="Nice City"/>
+  </node>
+  <node id="1" version="2" timestamp="2019-03-01T12:30:00Z" lat="0.0" lon="0.0" user="Bob" uid="2" changeset="10">
+      <tag k="place" v="city"/>
+      <tag k="name" v="Nice City"/>
+      <tag k="population" v="1000000"/>
+  </node>
+  <node id="2" version="1" timestamp="2019-04-01T00:00:00Z" lat="0.0" lon="0.0" user="Alice" uid="12" changeset="20">
+      <tag k="amenity" v="restaurant"/>
+      <tag k="name" v="TastyEats"/>
+  </node>
+  <node id="2" version="2" timestamp="2019-04-01T02:00:00Z" lat="0.0" lon="0.0" user="Alice" uid="12" changeset="21">
+      <tag k="amenity" v="restaurant"/>
+      <tag k="name" v="TastyEats"/>
+      <tag k="cuisine" v="regional"/>
+  </node>
+  <node id="2" version="3" timestamp="2019-04-01T03:00:00Z" lat="0.0" lon="0.0" user="Alice" uid="12" changeset="22">
+      <tag k="amenity" v="restaurant"/>
+      <tag k="name" v="TastyEats"/>
+      <tag k="cuisine" v="burger"/>
+  </node>
+  <node id="2" version="4" timestamp="2019-04-01T03:00:00Z" lat="1.0" lon="0.0" user="Alice" uid="12" changeset="22">
+      <tag k="amenity" v="restaurant"/>
+      <tag k="name" v="TastyEats"/>
+      <tag k="cuisine" v="burger"/>
+  </node>
+  <node id="3" version="1" timestamp="2019-04-01T00:00:00Z" lat="0.0" lon="0.0" user="Alice" uid="12" changeset="50">
+      <tag k="amenity" v="bench"/>
+  </node>
+  <node id="3" version="2" timestamp="2019-06-01T00:00:00Z" lat="0.0" lon="0.0" user="Alice" uid="12" changeset="100" visible="false">
+  </node>
+</osm>
+```
+
+NB: This programme cannot read XML files, only PBF. This file was converted to PBF with `osmium cat example.osm.xml -o example.osm.pbf`.
+
+Running `osm-tag-csv-history` on it produces this CSV file (formatted here as a table):
+
+| key         | old_value  | new_value   | object_type  | id  | old_version  | new_version  | datetime              | username  | uid  | changeset_id |
+| ----------- | ---------- | ----------- | ------------ | --- | ------------ | ------------ | --------------------- | --------- | ---- | ------------ |
+| name        |            | Nice City   | n            | 1   |              | 1            | 2019-01-01T00:00:00Z  | Alice     | 12   | 2            |
+| place       |            | city        | n            | 1   |              | 1            | 2019-01-01T00:00:00Z  | Alice     | 12   | 2            |
+| population  |            | 1000000     | n            | 1   | 1            | 2            | 2019-03-01T12:30:00Z  | Bob       | 2    | 10           |
+| amenity     |            | restaurant  | n            | 2   |              | 1            | 2019-04-01T00:00:00Z  | Alice     | 12   | 20           |
+| name        |            | TastyEats   | n            | 2   |              | 1            | 2019-04-01T00:00:00Z  | Alice     | 12   | 20           |
+| cuisine     |            | regional    | n            | 2   | 1            | 2            | 2019-04-01T02:00:00Z  | Alice     | 12   | 21           |
+| cuisine     | regional   | burger      | n            | 2   | 2            | 3            | 2019-04-01T03:00:00Z  | Alice     | 12   | 22           |
+| amenity     |            | bench       | n            | 3   |              | 1            | 2019-04-01T00:00:00Z  | Alice     | 12   | 50           |
+| amenity     | bench      |             | n            | 3   | 1            | 2            | 2019-06-01T00:00:00Z  | Alice     | 12   | 100          |
+
+
+Some things to note:
+
+* There can be more than one record (line) per version (n1 v1 has 2 lines, one for each tag that was added).
+* If no tags are changed, then there are no lines. There is no line for nide 2 v4 because the location, not the tags was changed.
+* An empty value for `old_version` means there was no previous, or earlier, version.
+* When an object (and hence tag) is deleted, the previous value is in `old_value`, and the `new_value` is empty, as for n3 v2.
 
 ## Possible useful tools
 
