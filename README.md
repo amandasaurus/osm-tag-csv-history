@@ -117,7 +117,7 @@ Running `osm-tag-csv-history` on it produces this CSV file (formatted here as a 
 Some things to note:
 
 * There can be more than one record (line) per version (n1 v1 has 2 lines, one for each tag that was added).
-* If no tags are changed, then there are no lines. There is no line for nide 2 v4 because the location, not the tags was changed.
+* If no tags are changed, then there are no lines. There is no line for node 2 v4 because the location, not the tags was changed.
 * An empty value for `old_version` means there was no previous, or earlier, version.
 * When an object (and hence tag) is deleted, the previous value is in `old_value`, and the `new_value` is empty, as for n3 v2.
 
