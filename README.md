@@ -10,7 +10,7 @@ data file with history.
 
 [Planet.OpenStreetMap.org](https://planet.openstreetmap.org/planet/full-history/) provides a “full history” file, updated every week, where you can download the [latest full history file (⚠ 80+ GB! ⚠)](https://planet.openstreetmap.org/pbf/full-history/history-latest.osm.pbf), although it's quite large.
 
-Geofabrik provides an [download service](https://osm-internal.download.geofabrik.de/) which includes full history files for lots of regions & countries. You must log into that with your OpenStreetMap account.
+Geofabrik provides an [download service](https://osm-internal.download.geofabrik.de/) which includes full history files for lots of regions & countries. You must log into that with your OpenStreetMap account. You can also use this tool on regular, non-history, OSM data files.
 
 ## Installation
 
@@ -24,31 +24,75 @@ You can download prebuild binary released from the [Github release page](https:/
 
     osm-tag-csv-history -i mydata.osm.pbf -o mydata.csv
 
-## Example
+### Example
 
 Many programmes can use CSV files. It's also possible to use hacky unix command
 line programmes to calculate who's adding fuel stations (`amenity=fuel` in OSM)
 in Ireland:
 
-    osm-tag-csv-history -i ~/osm/data/ireland-and-northern-ireland-internal.osh.pbf -o - --no-header | grep '^amenity,,fuel,' | cut -d, -f9 | sort | uniq -c | sort -n | tail -n 20
+    osm-tag-csv-history -i ./ireland-and-northern-ireland-internal.osh.pbf -o - --no-header | grep '^amenity,fuel,' | cut -d, -f9 | sort | uniq -c | sort -n | tail -n 20
+
+
+Here can find all times someone has upgraded a building from `building=yes` to
+something else.
+
+    osm-tag-csv-history -i data.osh.pbf -o - --no-header | grep -P '^building,[^,]+,yes,' | cat -n
+    
+And with some other command line commands, we can get a list of who's doing the
+most to make OSM more descriptive by upgrading `building=yes`.
+
+    osm-tag-csv-history -i data.osh.pbf -o - --no-header | grep -P '^building,[^,]+,yes,' | xsv select 8 | sort | uniq -c | sort -n | tail -n 20
+
+#### Using with `osmium getid`
+
+
+The `id` column (column 4) can be used [by `osmium-tool` to filter an OSM file by object id](https://osmcode.org/osmium-tool/manual.html#getting-osm-objects-by-id). This is how you get a file of all the pet shops in OSM in a file:
+
+    osm-tag-csv-history -i country-latest.osm.pbf -o - --no-header | grep '^shop,pet,' | xsv select 4 | osmium getid -i - country-latest.osm.pbf -o pets.osm.pbf -r
+
+(For this simple case, [`osmiums`'s tag
+filtering](https://osmcode.org/osmium-tool/manual.html#filtering-by-tags) is
+probably better)
+
+### Non-history files
+
+This programme can run on non-history files just fine. The `old_value`, and
+`old_version` will be empty. This can be a way to convert OSM data into CSV
+format for further processing.
+
+### Using on privacy preserving files.
+
+The [Geofabrik Public Download Service](http://download.geofabrik.de/) provides
+non-history files which do not include some metadata, like usernames, uids or
+changeset_ids. This tool can run on them and just give an empty value for
+username, and `0` for uid & changeset_id.
+
+If you have an OSM account, you can get full metada from the
+[internal](https://osm-internal.download.geofabrik.de/index.html) service.
 
 ## Output file format
 
-Records are separated by a `\n`. A header line is included by default, but it
+Records are separated by a newline (`\n`). A header line is included by default, but it
 can be turned off with `--no-header` (or forcibly included with `--header`).
+
+If any string (e.g. tag value, username) has a newline or characters like that,
+it will be escaped with a backslash (i.e. a newline is written as 2 characters,
+`\` then `n`).
 
 ### Columns
 
+(in order)
+
 * `key` The tag key
-* `old_value` The previous value. `""` (empty string) if the previous version
-  didn't have this key
 * `new_value` The current/new version. `""` (empty string) if the current
   version doesn't have this key (i.e. it has been removed from the object)
-* `object_type` The object type. `n` for node, `w` way, `r` relation
-* `id` The current/new object id
-* `old_version` The previous version number. `""` (empty string) for the first version of an object
+* `old_value` The previous value. `""` (empty string) if the previous version
+  didn't have this key
+* `id` The object type and id. First character is the type (`n`/`w`/`r`), then
+  the id. `n123` is node with id 123. This format is used [by `osmium-tool` to filter an OSM file by object id](https://osmcode.org/osmium-tool/manual.html#getting-osm-objects-by-id)
 * `new_version` The current/new version number
-* `datetime` Date time (RFC3339 UTC format) the object was created
+* `old_version` The previous version number. `""` (empty string) for the first version of an object
+* `datetime` Date time (RFC3339 format in UTC) the object was created
 * `username` The username of the user who changes it (remember: in OSM, users
   can change their username, UIDs remain constant)
 * `uid` The user id of the user.
@@ -56,7 +100,7 @@ can be turned off with `--no-header` (or forcibly included with `--header`).
 
 ### Example
 
-Imagine this simple 
+Imagine this simple file:
 
 ```xml
 <?xml version='1.0' encoding='UTF-8'?>
@@ -99,20 +143,19 @@ Imagine this simple
 
 NB: This programme cannot read XML files, only PBF. This file was converted to PBF with `osmium cat example.osm.xml -o example.osm.pbf`.
 
-Running `osm-tag-csv-history` on it produces this CSV file (formatted here as a table):
+Running `osm-tag-csv-history` on it produces this CSV file (formatted here as a table by with [`csvtomd`](https://github.com/mplewis/csvtomd)):
 
-| key         | old_value  | new_value   | object_type  | id  | old_version  | new_version  | datetime              | username  | uid  | changeset_id |
-| ----------- | ---------- | ----------- | ------------ | --- | ------------ | ------------ | --------------------- | --------- | ---- | ------------ |
-| name        |            | Nice City   | n            | 1   |              | 1            | 2019-01-01T00:00:00Z  | Alice     | 12   | 2            |
-| place       |            | city        | n            | 1   |              | 1            | 2019-01-01T00:00:00Z  | Alice     | 12   | 2            |
-| population  |            | 1000000     | n            | 1   | 1            | 2            | 2019-03-01T12:30:00Z  | Bob       | 2    | 10           |
-| amenity     |            | restaurant  | n            | 2   |              | 1            | 2019-04-01T00:00:00Z  | Alice     | 12   | 20           |
-| name        |            | TastyEats   | n            | 2   |              | 1            | 2019-04-01T00:00:00Z  | Alice     | 12   | 20           |
-| cuisine     |            | regional    | n            | 2   | 1            | 2            | 2019-04-01T02:00:00Z  | Alice     | 12   | 21           |
-| cuisine     | regional   | burger      | n            | 2   | 2            | 3            | 2019-04-01T03:00:00Z  | Alice     | 12   | 22           |
-| amenity     |            | bench       | n            | 3   |              | 1            | 2019-04-01T00:00:00Z  | Alice     | 12   | 50           |
-| amenity     | bench      |             | n            | 3   | 1            | 2            | 2019-06-01T00:00:00Z  | Alice     | 12   | 100          |
-
+key         |  new_value   |  old_value  |  id  |  new_version  |  old_version  |  datetime              |  username  |  uid  |  changeset_id
+------------|--------------|-------------|------|---------------|---------------|------------------------|------------|-------|--------------
+name        |  Nice City   |             |  n1  |  1            |               |  2019-01-01T00:00:00Z  |  Alice     |  12   |  2
+place       |  city        |             |  n1  |  1            |               |  2019-01-01T00:00:00Z  |  Alice     |  12   |  2
+population  |  1000000     |             |  n1  |  2            |  1            |  2019-03-01T12:30:00Z  |  Bob       |  2    |  10
+amenity     |  restaurant  |             |  n2  |  1            |               |  2019-04-01T00:00:00Z  |  Alice     |  12   |  20
+name        |  TastyEats   |             |  n2  |  1            |               |  2019-04-01T00:00:00Z  |  Alice     |  12   |  20
+cuisine     |  regional    |             |  n2  |  2            |  1            |  2019-04-01T02:00:00Z  |  Alice     |  12   |  21
+cuisine     |  burger      |  regional   |  n2  |  3            |  2            |  2019-04-01T03:00:00Z  |  Alice     |  12   |  22
+amenity     |  bench       |             |  n3  |  1            |               |  2019-04-01T00:00:00Z  |  Alice     |  12   |  50
+amenity     |              |  bench      |  n3  |  2            |  1            |  2019-06-01T00:00:00Z  |  Alice     |  12   |  100
 
 Some things to note:
 
@@ -134,3 +177,4 @@ The following other tools might be useful:
 Copyright 2020, GNU Affero General Public Licence (AGPL) v3 or later. See [LICENCE.txt](./LICENCE.txt).
 Source code is on [Sourcehut](https://git.sr.ht/~ebel/osm-tag-csv-history), and [Github](https://github.com/rory/osm-tag-csv-history).
 
+The output file should be viewed as a Derived Database of the OpenStreetMap database, and hence under the [ODbL 1.0](https://opendatacommons.org/licenses/odbl/) licence, the same as the [OpenStreetMap copyright](https://www.openstreetmap.org/copyright)

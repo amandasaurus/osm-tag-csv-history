@@ -116,10 +116,11 @@ fn main() -> Result<()> {
         trace!("Writing CSV header");
         output.write_record(&[
             "key",
-            "old_value", "new_value",
-            "object_type", "id",
-            "old_version", "new_version",
-            "datetime", "username", "uid", "changeset_id",
+            "new_value", "old_value",
+            "id",
+            "new_version", "old_version",
+            "datetime",
+            "username", "uid", "changeset_id",
         ])?;
     }
 
@@ -152,16 +153,21 @@ fn main() -> Result<()> {
             }
 
             trace!("Write tag change {} {:?} → {:?}", key, last_value, curr_value);
-            output.write_record(&[
+            for field in  [
                 key,
-                last_value, curr_value,
-                format!("{:?}", curr.object_type()).as_str(), curr.id().to_string().as_str(),
-                last_version.as_str(),
-                curr.version().unwrap().to_string().as_str(),
-                curr.timestamp().as_ref().unwrap().to_iso_string().as_str(),
-                curr.user().unwrap(), curr.uid().unwrap().to_string().as_str(),
-                curr.changeset_id().unwrap().to_string().as_str(),
-            ])?;
+                curr_value,
+                last_value,
+                &format!("{:?}{}", curr.object_type(), curr.id()).as_str(),
+                &curr.version().unwrap().to_string().as_str(),
+                &last_version.as_str(),
+                &curr.timestamp().as_ref().unwrap().to_iso_string().as_str(),
+                &curr.user().unwrap(), &curr.uid().unwrap().to_string().as_str(),
+                &curr.changeset_id().unwrap().to_string().as_str(),
+            ].iter() {
+
+                output.write_field(field.escape_debug().to_string())?
+            }
+            output.write_record(None::<&[u8]>)?;
 
         }
 
