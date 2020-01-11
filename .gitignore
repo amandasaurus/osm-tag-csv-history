@@ -3,3 +3,5 @@
 /*.csv
 /*.csv.gz
 .*.swp
+/*.osm.pbf
+/*.osm.xml
