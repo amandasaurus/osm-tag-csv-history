@@ -92,11 +92,19 @@ it will be escaped with a backslash (i.e. a newline is written as 2 characters,
   the id. `n123` is node with id 123. This format is used [by `osmium-tool` to filter an OSM file by object id](https://osmcode.org/osmium-tool/manual.html#getting-osm-objects-by-id)
 * `new_version` The current/new version number
 * `old_version` The previous version number. `""` (empty string) for the first version of an object
-* `datetime` Date time (RFC3339 format in UTC) the object was created
+* Either:
+    * `datetime` Date time (RFC3339 format in UTC) the object was created. Default, or if `--timestamp-format dateime` was used.
+    * `epoch_time` Date time (Unix epoch time) the object was created. Only if `--timestamp-format epoch_time` was used.
 * `username` The username of the user who changes it (remember: in OSM, users
   can change their username, UIDs remain constant)
 * `uid` The user id of the user.
 * `changeset_id` Changeset id where this change was made
+
+### Timestamp format
+
+One column contains the timestamp. Be default, the column will be the timestamp in RFC3339 (a subset of ISO 8601 format), i.e. `YYYY-MM-DDTHH:MM:SSZ`.
+
+With `--timestampformat epoch_time`, the column will be called `epoch_time`, and the timestamp will be in unix epoch time. This is how the data is stored in an OSM PBF file. This makes processing about 15% faster.
 
 ### Example
 
