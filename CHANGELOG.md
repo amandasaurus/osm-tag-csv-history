@@ -1,4 +1,4 @@
-# Unreleased
+# v0.3.0 - 21 Jan 2020
 
 * The output timestamp can be switched to unix epoch timestamp format, which is
   ~15+ faster. Default is still the regular RFC3339 format
