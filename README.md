@@ -18,7 +18,7 @@ If you have Rust installed, you can install it with:
 
     cargo install osm-tag-csv-history
 
-You can download prebuild binary released from the [Github release page](https://github.com/rory/osm-tag-csv-history/releases), (e.g. [download the v0.1.0 release](https://github.com/rory/osm-tag-csv-history/releases/download/v0.1.0/osm-tag-csv-history)).
+You can download prebuild binary released from the [Github release page](https://github.com/rory/osm-tag-csv-history/releases), (e.g. [download the v0.3.0 release](https://github.com/rory/osm-tag-csv-history/releases/download/v0.3.0/osm-tag-csv-history)).
 
 ## Usage
 
