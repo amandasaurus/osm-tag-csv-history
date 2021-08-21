@@ -35,15 +35,15 @@ fn main() -> Result<()> {
 
         .arg(Arg::with_name("input")
              .short("i").long("input")
-             .value_name("INPUT.osm.pbf")
-             .help("Input file to convert")
+             .value_name("INPUT.osh.pbf")
+             .help("Input file to convert. Should probaly be a history file")
              .takes_value(true).required(true)
              )
 
         .arg(Arg::with_name("output")
              .short("o").long("output")
-             .value_name("OUTPUT.csv")
-             .help("Where to write the output. Use - for stdout")
+             .value_name("OUTPUT.csv[.gz]")
+             .help("Where to write the output. Use - for stdout. with auto compression, if this file ends with .gz, then it will be gzip compressed")
              .takes_value(true).required(true)
              )
 
