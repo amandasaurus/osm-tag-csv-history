@@ -87,7 +87,33 @@ fn main() -> Result<()> {
              .takes_value(true).required(false)
              .possible_values(&["datetime", "epoch_time"])
              .default_value("datetime")
-             .help("What format to use for time column?")
+             .help("What format to use for time column in output file?")
+             )
+
+        
+        .arg(Arg::with_name("tag")
+             .short("t").long("tag")
+             .value_name("TAG")
+             .takes_value(true).required(false)
+             .multiple(true).number_of_values(1)
+             .help("Only include changes to this tag (can be specified multiple times)")
+             )
+
+
+        .arg(Arg::with_name("changeset_filename")
+             .long("changesets")
+             .value_name("changesets-latest.osm.bz")
+             .takes_value(true).required(false)
+             .help("Filename of the changeset file")
+             )
+
+        .arg(Arg::with_name("changeset_tag")
+             .short("C").long("changesets-tag")
+             .value_name("TAG")
+             .takes_value(true).required(false)
+             .multiple(true)
+             .help("Include a column with this changeset tag")
+             .requires("changeset_filename")
              )
 
 

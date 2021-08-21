@@ -18,7 +18,7 @@ If you have Rust installed, you can install it with:
 
     cargo install osm-tag-csv-history
 
-You can download prebuild binary released from the [Github release page](https://github.com/rory/osm-tag-csv-history/releases), (e.g. [download the v0.3.0 release](https://github.com/rory/osm-tag-csv-history/releases/download/v0.3.0/osm-tag-csv-history)).
+You can download prebuild binary released from the [Github release page](https://github.com/amandasaurus/osm-tag-csv-history/releases), (e.g. [download the v0.3.0 release](https://github.com/amandasaurus/osm-tag-csv-history/releases/download/v0.3.0/osm-tag-csv-history)).
 
 ## Usage
 
@@ -183,6 +183,6 @@ The following other tools might be useful:
 ## Misc
 
 Copyright 2020, GNU Affero General Public Licence (AGPL) v3 or later. See [LICENCE.txt](./LICENCE.txt).
-Source code is on [Sourcehut](https://git.sr.ht/~ebel/osm-tag-csv-history), and [Github](https://github.com/rory/osm-tag-csv-history).
+Source code is on [Sourcehut](https://git.sr.ht/~ebel/osm-tag-csv-history), and [Github](https://github.com/amandasaurus/osm-tag-csv-history).
 
 The output file should be viewed as a Derived Database of the OpenStreetMap database, and hence under the [ODbL 1.0](https://opendatacommons.org/licenses/odbl/) licence, the same as the [OpenStreetMap copyright](https://www.openstreetmap.org/copyright)

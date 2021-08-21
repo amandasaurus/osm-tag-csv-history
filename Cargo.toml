@@ -1,7 +1,7 @@
 [package]
 name = "osm-tag-csv-history"
 version = "0.3.0"
-authors = ["Rory McCann <rory@technomancy.org>"]
+authors = ["Amanda McCann <amanda@technomancy.org>"]
 edition = "2018"
 license = "AGPL-3.0+"
 repository = "https://git.sr.ht/~ebel/osm-tag-csv-history"
