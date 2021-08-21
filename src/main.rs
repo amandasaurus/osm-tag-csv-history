@@ -142,6 +142,8 @@ fn main() -> Result<()> {
     let mut osm_obj_reader = osmio::pbf::PBFReader::new(BufReader::new(ReaderWithSize::from_file(file)?));
     let mut objects_iter = osm_obj_reader.objects();
 
+    let only_include_tags: Option<Vec<String>> = matches.values_of("tag").map(|ts| ts.map(|s| s.to_string()).collect());
+
     let include_header = match (matches.is_present("header"), matches.is_present("no-header")) {
         (false, false) => true,
         (true, false) => true,
@@ -192,6 +194,7 @@ fn main() -> Result<()> {
 
     let mut curr = objects_iter.next().unwrap();
     let mut last: Option<osmio::obj_types::RcOSMObj> = None;
+
     let mut num_objects = 0;
 
     let mut time_counter = do_every::DoEvery::new();
@@ -201,6 +204,7 @@ fn main() -> Result<()> {
     let started_processing = Instant::now();
 
     loop {
+        // Logging output
         num_objects += 1;
         if num_objects % 1000 == 0 && time_counter.should_do_every_sec(log_frequency) {
             let reader = objects_iter.inner().inner().get_ref();
@@ -217,6 +221,8 @@ fn main() -> Result<()> {
             None => curr.tagged(),
             Some(ref l) => l.tagged() || curr.tagged(),
         };
+
+        // The 'only_include_tags' could be checked here to speed it up
 
         if has_tags {
 
@@ -244,6 +250,10 @@ fn main() -> Result<()> {
             let mut curr_value;
 
             for key in keys.into_iter() {
+                // Should we skip this tag?
+                if only_include_tags.as_ref().map_or(false, |only_include_tags| !only_include_tags.iter().any(|t| t == key)) {
+                    continue;
+                }
                 last_value = if let Some(ref lt) = last_tags {
                     lt.get(key).unwrap_or(&"")
                 } else {
