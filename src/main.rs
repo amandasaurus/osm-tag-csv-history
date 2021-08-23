@@ -1,29 +1,31 @@
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
+extern crate csv;
 extern crate env_logger;
 extern crate osmio;
-extern crate csv;
-#[macro_use] extern crate anyhow;
+#[macro_use]
+extern crate anyhow;
 extern crate clap;
-extern crate flate2;
 extern crate do_every;
+extern crate flate2;
 extern crate read_progress;
 extern crate rusqlite;
 extern crate serde_json;
 
-use std::io::BufReader;
-use std::fs::File;
-use std::collections::{HashMap, BTreeMap};
 use std::cmp::Ordering;
+use std::collections::{BTreeMap, HashMap};
+use std::fs::File;
+use std::io::BufReader;
 use std::time::Instant;
 
-use clap::{Arg, App};
-use osmio::{OSMReader, OSMObj, OSMObjBase};
+use clap::{App, Arg};
+use osmio::{OSMObj, OSMObjBase, OSMReader};
 
+use anyhow::{Context, Result};
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use anyhow::{Context, Result};
 use read_progress::ReaderWithSize;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension};
 
 enum TimestampFormat {
     Datetime,
@@ -31,7 +33,6 @@ enum TimestampFormat {
 }
 
 fn main() -> Result<()> {
-
     let matches = App::new("osm-tag-csv-history")
         .version(env!("CARGO_PKG_VERSION"))
         .about("Create a CSV file detailing tagging changes in an OSM file")
@@ -123,12 +124,12 @@ fn main() -> Result<()> {
         .get_matches();
 
     env_logger::builder()
-        .filter_level(match matches.occurrences_of("verbosity"){
+        .filter_level(match matches.occurrences_of("verbosity") {
             0 => log::LevelFilter::Warn,
             1 => log::LevelFilter::Info,
             2 => log::LevelFilter::Debug,
             _ => log::LevelFilter::Trace,
-                })
+        })
         .init();
 
     let input_path = matches.value_of("input").unwrap();
@@ -141,17 +142,27 @@ fn main() -> Result<()> {
         _ => unreachable!(),
     };
 
-    let file = File::open(input_path).with_context(|| format!("opening input file {}", input_path))?;
-    let mut osm_obj_reader = osmio::pbf::PBFReader::new(BufReader::new(ReaderWithSize::from_file(file)?));
+    let file =
+        File::open(input_path).with_context(|| format!("opening input file {}", input_path))?;
+    let mut osm_obj_reader =
+        osmio::pbf::PBFReader::new(BufReader::new(ReaderWithSize::from_file(file)?));
     let mut objects_iter = osm_obj_reader.objects();
 
-    let only_include_tags: Option<Vec<String>> = matches.values_of("tag").map(|ts| ts.map(|s| s.to_string()).collect());
+    let only_include_tags: Option<Vec<String>> = matches
+        .values_of("tag")
+        .map(|ts| ts.map(|s| s.to_string()).collect());
 
     // changesets?
-    let changeset_tags: Option<Vec<String>> = matches.values_of("changeset_tag").map(|ts| ts.map(|s| s.to_string()).collect());
-    let changeset_tag_lookup = ChangesetTagLookup::from_filename(matches.value_of("changeset_filename").unwrap())?;
+    let changeset_tags: Option<Vec<String>> = matches
+        .values_of("changeset_tag")
+        .map(|ts| ts.map(|s| s.to_string()).collect());
+    let changeset_tag_lookup =
+        ChangesetTagLookup::from_filename(matches.value_of("changeset_filename").unwrap())?;
 
-    let include_header = match (matches.is_present("header"), matches.is_present("no-header")) {
+    let include_header = match (
+        matches.is_present("header"),
+        matches.is_present("no-header"),
+    ) {
         (false, false) => true,
         (true, false) => true,
         (false, true) => false,
@@ -178,7 +189,10 @@ fn main() -> Result<()> {
                 trace!("Output file ends with .csv so no compression");
                 output_writer
             } else {
-                bail!("Cannot auto-detect output compression format: {:?}", output_path);
+                bail!(
+                    "Cannot auto-detect output compression format: {:?}",
+                    output_path
+                );
             }
         }
         Some("none") => output_writer,
@@ -191,11 +205,18 @@ fn main() -> Result<()> {
         trace!("Writing CSV header");
         for header_field in &[
             "key",
-            "new_value", "old_value",
+            "new_value",
+            "old_value",
             "id",
-            "new_version", "old_version",
-            match timestamp_format { TimestampFormat::Datetime => "datetime", TimestampFormat::EpochTime => "epoch_time", },
-            "username", "uid", "changeset_id",
+            "new_version",
+            "old_version",
+            match timestamp_format {
+                TimestampFormat::Datetime => "datetime",
+                TimestampFormat::EpochTime => "epoch_time",
+            },
+            "username",
+            "uid",
+            "changeset_id",
         ] {
             output.write_field(header_field)?;
         }
@@ -227,9 +248,15 @@ fn main() -> Result<()> {
             let reader = objects_iter.inner().inner().get_ref();
             info!(
                 "Running: {:.3}% done ETA: {} est. total: {}",
-                reader.fraction()*100.,
-                reader.eta().map(|d| format_time(&d)).unwrap_or("N/A".to_string()),
-                reader.est_total_time().map(|d| format_time(&d)).unwrap_or("N/A".to_string()),
+                reader.fraction() * 100.,
+                reader
+                    .eta()
+                    .map(|d| format_time(&d))
+                    .unwrap_or("N/A".to_string()),
+                reader
+                    .est_total_time()
+                    .map(|d| format_time(&d))
+                    .unwrap_or("N/A".to_string()),
             );
             num_objects = 1;
         }
@@ -242,17 +269,22 @@ fn main() -> Result<()> {
         // The 'only_include_tags' could be checked here to speed it up
 
         if has_tags {
-
             let (last_tags, last_version) = match last {
                 None => (None, "".to_string()),
                 Some(ref last) => {
-                    ensure!(sorted_objects(last, &curr) == Ordering::Less, "Non sorted input");
+                    ensure!(
+                        sorted_objects(last, &curr) == Ordering::Less,
+                        "Non sorted input"
+                    );
                     if last.object_type() == curr.object_type() && last.id() == curr.id() {
-                        ( Some(last.tags().collect::<HashMap<_, _>>()), last.version().unwrap().to_string())
+                        (
+                            Some(last.tags().collect::<HashMap<_, _>>()),
+                            last.version().unwrap().to_string(),
+                        )
                     } else {
                         (None, "".to_string())
                     }
-                },
+                }
             };
 
             let curr_tags: BTreeMap<_, _> = curr.tags().collect();
@@ -268,7 +300,12 @@ fn main() -> Result<()> {
 
             for key in keys.into_iter() {
                 // Should we skip this tag?
-                if only_include_tags.as_ref().map_or(false, |only_include_tags| !only_include_tags.iter().any(|t| t == key)) {
+                if only_include_tags
+                    .as_ref()
+                    .map_or(false, |only_include_tags| {
+                        !only_include_tags.iter().any(|t| t == key)
+                    })
+                {
                     continue;
                 }
                 last_value = if let Some(ref lt) = last_tags {
@@ -281,24 +318,44 @@ fn main() -> Result<()> {
                     continue;
                 }
 
-                trace!("Write tag change {} {:?} → {:?}", key, last_value, curr_value);
+                trace!(
+                    "Write tag change {} {:?} → {:?}",
+                    key,
+                    last_value,
+                    curr_value
+                );
 
-                for (should_escape, field) in  [
-                    (true,  key),
-                    (true,  curr_value),
-                    (true,  last_value),
-                    (false, &format!("{:?}{}", curr.object_type(), curr.id()).as_str()),
+                for (should_escape, field) in [
+                    (true, key),
+                    (true, curr_value),
+                    (true, last_value),
+                    (
+                        false,
+                        &format!("{:?}{}", curr.object_type(), curr.id()).as_str(),
+                    ),
                     (false, &curr.version().unwrap().to_string().as_str()),
                     (false, &last_version.as_str()),
-                    (false, &(match timestamp_format {
-                        TimestampFormat::Datetime => curr.timestamp().as_ref().unwrap().to_iso_string(),
-                        TimestampFormat::EpochTime => curr.timestamp().as_ref().unwrap().to_epoch_number().to_string(),
-                    }).as_str()),
-                    (true,  &curr.user().unwrap()),
+                    (
+                        false,
+                        &(match timestamp_format {
+                            TimestampFormat::Datetime => {
+                                curr.timestamp().as_ref().unwrap().to_iso_string()
+                            }
+                            TimestampFormat::EpochTime => curr
+                                .timestamp()
+                                .as_ref()
+                                .unwrap()
+                                .to_epoch_number()
+                                .to_string(),
+                        })
+                        .as_str(),
+                    ),
+                    (true, &curr.user().unwrap()),
                     (false, &curr.uid().unwrap().to_string().as_str()),
                     (false, &curr.changeset_id().unwrap().to_string().as_str()),
-                ].iter() {
-
+                ]
+                .iter()
+                {
                     if *should_escape {
                         encode_field(field, &mut field_bytes, &mut utf8_bytes_buffer);
                     } else {
@@ -311,14 +368,21 @@ fn main() -> Result<()> {
 
                 if let Some(changeset_tags) = changeset_tags.as_ref() {
                     match changeset_tag_lookup.tags(curr.changeset_id().unwrap())? {
-                        None => {   // no changeset found
+                        None => {
+                            // no changeset found
                             for _ in 0..changeset_tags.len() {
                                 output.write_field("")?;
                             }
-                        },
+                        }
                         Some(tags_for_changeset) => {
                             for changeset_tag in changeset_tags {
-                                match tags_for_changeset.iter().filter_map(|(k, v)| if k == changeset_tag { Some(v) } else { None }).next() {
+                                match tags_for_changeset
+                                    .iter()
+                                    .filter_map(
+                                        |(k, v)| if k == changeset_tag { Some(v) } else { None },
+                                    )
+                                    .next()
+                                {
                                     None => output.write_field("")?,
                                     Some(v) => output.write_field(v)?,
                                 }
@@ -327,22 +391,23 @@ fn main() -> Result<()> {
                     }
                 }
 
-
                 output.write_record(None::<&[u8]>)?;
-
             }
         }
 
         last = Some(curr);
         curr = match objects_iter.next() {
-            None => { break; },
+            None => {
+                break;
+            }
             Some(o) => o,
         };
-
     }
 
-
-    info!("Finished in {}", format_time(&(Instant::now() - started_processing)));
+    info!(
+        "Finished in {}",
+        format_time(&(Instant::now() - started_processing))
+    );
     Ok(())
 }
 
@@ -367,7 +432,8 @@ fn encode_field(field: &str, bytes: &mut Vec<u8>, mut utf8_bytes_buffer: &mut Ve
 }
 
 fn sorted_objects(a: &impl OSMObj, b: &impl OSMObj) -> std::cmp::Ordering {
-    a.object_type().cmp(&b.object_type())
+    a.object_type()
+        .cmp(&b.object_type())
         .then(a.id().cmp(&b.id()))
         .then(a.version().cmp(&b.version()))
 }
@@ -377,15 +443,15 @@ pub fn format_time(duration: &std::time::Duration) -> String {
     if sec < 60 {
         format!("{:2}s", sec)
     } else {
-        let (min, sec) = (sec/60, sec%60);
+        let (min, sec) = (sec / 60, sec % 60);
         if min < 60 {
             format!("{:2}m{:02}s", min, sec)
         } else {
-            let (hr, min) = (min/60, min%60);
+            let (hr, min) = (min / 60, min % 60);
             if hr < 24 {
                 format!("{}h{:02}m{:02}s", hr, min, sec)
             } else {
-                let (day, hr) = (hr/24, hr%24);
+                let (day, hr) = (hr / 24, hr % 24);
                 format!("{}d{}h{:02}m{:02}s", day, hr, min, sec)
             }
         }
@@ -399,21 +465,24 @@ struct ChangesetTagLookup {
 impl ChangesetTagLookup {
     fn from_filename(filename: &str) -> Result<Self> {
         let conn = Connection::open(filename)?;
-        Ok(ChangesetTagLookup{ conn })
+        Ok(ChangesetTagLookup { conn })
     }
 
     fn tags(&self, cid: u32) -> Result<Option<Vec<(String, String)>>> {
-        let res: Option<Vec<u8>> = self.conn.query_row(
-            "select other_tags from changeset_tags where id = ?1;",
-            [cid],
-            |row| row.get(0)).optional()?;
-        match res
-        {
+        let res: Option<Vec<u8>> = self
+            .conn
+            .query_row(
+                "select other_tags from changeset_tags where id = ?1;",
+                [cid],
+                |row| row.get(0),
+            )
+            .optional()?;
+        match res {
             None => Ok(None),
             Some(tags) => {
                 let tags: Vec<(String, String)> = serde_json::from_slice(&tags)?;
                 Ok(Some(tags))
-            },
+            }
         }
     }
 }
