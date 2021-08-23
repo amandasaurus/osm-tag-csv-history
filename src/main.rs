@@ -152,11 +152,14 @@ fn main() -> Result<()> {
         .map(|ts| ts.map(|s| s.to_string()).collect());
 
     // changesets?
-    let changeset_tags: Option<Vec<String>> = matches
-        .values_of("changeset_tag")
-        .map(|ts| ts.map(|s| s.to_string()).collect());
-    let changeset_tag_lookup =
-        ChangesetTagLookup::from_filename(matches.value_of("changeset_filename").unwrap())?;
+    let changeset_tags = match matches.values_of("changeset_tags") {
+        None => None,
+        Some(tags) => {
+            let tags = tags.into_iter().map(|s| s.to_string()).collect::<Vec<String>>();
+            let lookup = ChangesetTagLookup::from_filename(matches.value_of("changeset_filename").unwrap())?;
+            Some((tags, lookup))
+        },
+    };
 
     let include_header = match (
         matches.is_present("header"),
@@ -220,7 +223,7 @@ fn main() -> Result<()> {
             output.write_field(header_field)?;
         }
 
-        if let Some(changeset_tags) = changeset_tags.as_ref() {
+        if let Some((changeset_tags, _)) = changeset_tags.as_ref() {
             for changeset_tag in changeset_tags {
                 output.write_field(format!("changeset_{}", changeset_tag))?;
             }
@@ -365,7 +368,7 @@ fn main() -> Result<()> {
                     output.write_field(&field_bytes)?;
                 }
 
-                if let Some(changeset_tags) = changeset_tags.as_ref() {
+                if let Some((changeset_tags, changeset_tag_lookup)) = changeset_tags.as_ref() {
                     match changeset_tag_lookup.tags(curr.changeset_id().unwrap())? {
                         None => {
                             // no changeset found
