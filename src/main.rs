@@ -151,14 +151,35 @@ fn main() -> Result<()> {
         .values_of("tag")
         .map(|ts| ts.map(|s| s.to_string()).collect());
 
+    if let Some(only_include_tags) = only_include_tags.as_ref() {
+        info!(
+            "Only including changes to these {} tag(s): {:?}",
+            only_include_tags.len(),
+            only_include_tags
+        );
+    }
+
     // changesets?
     let changeset_tags = match matches.values_of("changeset_tags") {
         None => None,
         Some(tags) => {
-            let tags = tags.into_iter().map(|s| s.to_string()).collect::<Vec<String>>();
-            let lookup = ChangesetTagLookup::from_filename(matches.value_of("changeset_filename").unwrap())?;
+            let tags = tags
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>();
+            info!(
+                "Including columns for the following {} changeset tags: {:?}",
+                tags.len(),
+                tags
+            );
+            let lookup =
+                ChangesetTagLookup::from_filename(matches.value_of("changeset_filename").unwrap())?;
+            debug!(
+                "Reading changeset sqlite from {}",
+                matches.value_of("changeset_filename").unwrap()
+            );
             Some((tags, lookup))
-        },
+        }
     };
 
     let include_header = match (
@@ -304,9 +325,9 @@ fn main() -> Result<()> {
                 // Should we skip this tag?
                 if only_include_tags
                     .as_ref()
-                    .map_or(false, |only_include_tags|
+                    .map_or(false, |only_include_tags| {
                         !only_include_tags.iter().any(|t| t == key)
-                    )
+                    })
                 {
                     continue;
                 }
@@ -371,6 +392,7 @@ fn main() -> Result<()> {
                 if let Some((changeset_tags, changeset_tag_lookup)) = changeset_tags.as_ref() {
                     match changeset_tag_lookup.tags(curr.changeset_id().unwrap())? {
                         None => {
+                            trace!("No tags found for changeset {:?}", curr.changeset_id());
                             // no changeset found
                             for _ in 0..changeset_tags.len() {
                                 output.write_field("")?;
