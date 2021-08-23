@@ -94,7 +94,6 @@ fn main() -> Result<()> {
              .help("What format to use for time column in output file?")
              )
 
-        
         .arg(Arg::with_name("tag")
              .short("t").long("tag")
              .value_name("TAG")
@@ -302,9 +301,9 @@ fn main() -> Result<()> {
                 // Should we skip this tag?
                 if only_include_tags
                     .as_ref()
-                    .map_or(false, |only_include_tags|
+                    .map_or(false, |only_include_tags| {
                         !only_include_tags.iter().any(|t| t == key)
-                    )
+                    })
                 {
                     continue;
                 }
