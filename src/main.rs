@@ -252,11 +252,11 @@ fn main() -> Result<()> {
                 reader
                     .eta()
                     .map(|d| format_time(&d))
-                    .unwrap_or("N/A".to_string()),
+                    .unwrap_or_else(|| "N/A".to_string()),
                 reader
                     .est_total_time()
                     .map(|d| format_time(&d))
-                    .unwrap_or("N/A".to_string()),
+                    .unwrap_or_else(|| "N/A".to_string()),
             );
             num_objects = 1;
         }
@@ -302,9 +302,9 @@ fn main() -> Result<()> {
                 // Should we skip this tag?
                 if only_include_tags
                     .as_ref()
-                    .map_or(false, |only_include_tags| {
+                    .map_or(false, |only_include_tags|
                         !only_include_tags.iter().any(|t| t == key)
-                    })
+                    )
                 {
                     continue;
                 }
@@ -416,14 +416,11 @@ fn encode_field(field: &str, bytes: &mut Vec<u8>, mut utf8_bytes_buffer: &mut Ve
 
     for c in field.chars() {
         if c == '\t' {
-            bytes.push('\\' as u8);
-            bytes.push('t' as u8);
+            bytes.push(b'\\');
+            bytes.push(b't');
         } else if c == '\n' {
-            bytes.push('\\' as u8);
-            bytes.push('n' as u8);
-        } else if c == '\t' {
-            bytes.push('\\' as u8);
-            bytes.push('t' as u8);
+            bytes.push(b'\\');
+            bytes.push(b'n');
         } else {
             c.encode_utf8(&mut utf8_bytes_buffer);
             bytes.extend(&utf8_bytes_buffer[..c.len_utf8()]);
