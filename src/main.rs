@@ -7,6 +7,8 @@ extern crate clap;
 extern crate flate2;
 extern crate do_every;
 extern crate read_progress;
+extern crate rusqlite;
+extern crate serde_json;
 
 use std::io::BufReader;
 use std::fs::File;
@@ -19,8 +21,9 @@ use osmio::{OSMReader, OSMObj, OSMObjBase};
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use read_progress::ReaderWithSize;
+use rusqlite::{params, Connection, OptionalExtension};
 
 enum TimestampFormat {
     Datetime,
@@ -102,7 +105,7 @@ fn main() -> Result<()> {
 
         .arg(Arg::with_name("changeset_filename")
              .long("changesets")
-             .value_name("changesets-latest.osm.bz")
+             .value_name("changesets-latest.osm.bz2")
              .takes_value(true).required(false)
              .help("Filename of the changeset file")
              )
@@ -129,7 +132,7 @@ fn main() -> Result<()> {
         .init();
 
     let input_path = matches.value_of("input").unwrap();
-    info!("Begining processing of {}", input_path);
+    info!("Beginning processing of {}", input_path);
 
     let log_frequency: f32 = matches.value_of("log-frequency").unwrap().parse()?;
     let timestamp_format = match matches.value_of("timestamp_format").unwrap() {
@@ -138,11 +141,15 @@ fn main() -> Result<()> {
         _ => unreachable!(),
     };
 
-    let file = File::open(input_path)?;
+    let file = File::open(input_path).with_context(|| format!("opening input file {}", input_path))?;
     let mut osm_obj_reader = osmio::pbf::PBFReader::new(BufReader::new(ReaderWithSize::from_file(file)?));
     let mut objects_iter = osm_obj_reader.objects();
 
     let only_include_tags: Option<Vec<String>> = matches.values_of("tag").map(|ts| ts.map(|s| s.to_string()).collect());
+
+    // changesets?
+    let changeset_tags: Option<Vec<String>> = matches.values_of("changeset_tag").map(|ts| ts.map(|s| s.to_string()).collect());
+    let changeset_tag_lookup = ChangesetTagLookup::from_filename(matches.value_of("changeset_filename").unwrap())?;
 
     let include_header = match (matches.is_present("header"), matches.is_present("no-header")) {
         (false, false) => true,
@@ -182,14 +189,24 @@ fn main() -> Result<()> {
 
     if include_header {
         trace!("Writing CSV header");
-        output.write_record(&[
+        for header_field in &[
             "key",
             "new_value", "old_value",
             "id",
             "new_version", "old_version",
             match timestamp_format { TimestampFormat::Datetime => "datetime", TimestampFormat::EpochTime => "epoch_time", },
             "username", "uid", "changeset_id",
-        ])?;
+        ] {
+            output.write_field(header_field)?;
+        }
+
+        if let Some(changeset_tags) = changeset_tags.as_ref() {
+            for changeset_tag in changeset_tags {
+                output.write_field(format!("changeset_{}", changeset_tag))?;
+            }
+        }
+
+        output.write_record(None::<&[u8]>)?;
     }
 
     let mut curr = objects_iter.next().unwrap();
@@ -292,6 +309,25 @@ fn main() -> Result<()> {
                     output.write_field(&field_bytes)?;
                 }
 
+                if let Some(changeset_tags) = changeset_tags.as_ref() {
+                    match changeset_tag_lookup.tags(curr.changeset_id().unwrap())? {
+                        None => {   // no changeset found
+                            for _ in 0..changeset_tags.len() {
+                                output.write_field("")?;
+                            }
+                        },
+                        Some(tags_for_changeset) => {
+                            for changeset_tag in changeset_tags {
+                                match tags_for_changeset.iter().filter_map(|(k, v)| if k == changeset_tag { Some(v) } else { None }).next() {
+                                    None => output.write_field("")?,
+                                    Some(v) => output.write_field(v)?,
+                                }
+                            }
+                        }
+                    }
+                }
+
+
                 output.write_record(None::<&[u8]>)?;
 
             }
@@ -352,6 +388,32 @@ pub fn format_time(duration: &std::time::Duration) -> String {
                 let (day, hr) = (hr/24, hr%24);
                 format!("{}d{}h{:02}m{:02}s", day, hr, min, sec)
             }
+        }
+    }
+}
+
+struct ChangesetTagLookup {
+    conn: Connection,
+}
+
+impl ChangesetTagLookup {
+    fn from_filename(filename: &str) -> Result<Self> {
+        let conn = Connection::open(filename)?;
+        Ok(ChangesetTagLookup{ conn })
+    }
+
+    fn tags(&self, cid: u32) -> Result<Option<Vec<(String, String)>>> {
+        let res: Option<Vec<u8>> = self.conn.query_row(
+            "select other_tags from changeset_tags where id = ?1;",
+            [cid],
+            |row| row.get(0)).optional()?;
+        match res
+        {
+            None => Ok(None),
+            Some(tags) => {
+                let tags: Vec<(String, String)> = serde_json::from_slice(&tags)?;
+                Ok(Some(tags))
+            },
         }
     }
 }

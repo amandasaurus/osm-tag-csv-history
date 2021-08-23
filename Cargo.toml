@@ -18,6 +18,8 @@ flate2 = "1.0.13"
 do_every = "0.1.0"
 read-progress = "0.2.0"
 osmio = "0.2.1"
+rusqlite = "0.25.3"
+serde_json = "1.0.66"
 
 [profile.dev]
 opt-level = 3
