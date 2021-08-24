@@ -8,9 +8,21 @@ data file with history.
 
 ## Getting data
 
-[Planet.OpenStreetMap.org](https://planet.openstreetmap.org/planet/full-history/) provides a “full history” file, updated every week, where you can download the [latest full history file (⚠ 80+ GB! ⚠)](https://planet.openstreetmap.org/pbf/full-history/history-latest.osm.pbf), although it's quite large.
+[Planet.OpenStreetMap.org](https://planet.openstreetmap.org/planet/full-history/)
+provides a “full history” file, updated every week, where you can download the
+[latest full history file (⚠ 99+ GB!
+⚠)](https://planet.openstreetmap.org/pbf/full-history/history-latest.osm.pbf),
+although it's quite large.
 
-Geofabrik provides an [download service](https://osm-internal.download.geofabrik.de/) which includes full history files for lots of regions & countries. You must log into that with your OpenStreetMap account. You can also use this tool on regular, non-history, OSM data files.
+Download it over BitTorrent with:
+
+	aria2c --seed-time 0 https://planet.openstreetmap.org/pbf/full-history/history-latest.osm.pbf.torrent
+
+Geofabrik provides an [download
+service](https://osm-internal.download.geofabrik.de/) which includes full
+history files for lots of regions & countries. You must log into that with your
+OpenStreetMap account. You can also use this tool on regular, non-history, OSM
+data files.
 
 ## Installation
 
@@ -23,6 +35,10 @@ You can download prebuild binary released from the [Github release page](https:/
 ## Usage
 
     osm-tag-csv-history -i mydata.osm.pbf -o mydata.csv
+
+### Tag Filtering
+
+By default, all tag changes are included. With the `--tag`/`-t` argument, only q
 
 ### Example
 
@@ -45,7 +61,6 @@ most to make OSM more descriptive by upgrading `building=yes`.
 
 #### Using with `osmium getid`
 
-
 The `id` column (column 4) can be used [by `osmium-tool` to filter an OSM file by object id](https://osmcode.org/osmium-tool/manual.html#getting-osm-objects-by-id). This is how you get a file of all the pet shops in OSM in a file:
 
     osm-tag-csv-history -i country-latest.osm.pbf -o - --no-header | grep '^shop,pet,' | xsv select 4 | osmium getid -i - country-latest.osm.pbf -o pets.osm.pbf -r
@@ -64,8 +79,8 @@ format for further processing.
 
 The [Geofabrik Public Download Service](http://download.geofabrik.de/) provides
 non-history files which do not include some metadata, like usernames, uids or
-changeset_ids. This tool can run on them and just give an empty value for
-username, and `0` for uid & changeset_id.
+changeset\_ids. This tool can run on them and just give an empty value for
+username, and `0` for uid & changeset\_id.
 
 If you have an OSM account, you can get full metada from the
 [internal](https://osm-internal.download.geofabrik.de/index.html) service.
@@ -102,9 +117,12 @@ it will be escaped with a backslash (i.e. a newline is written as 2 characters,
 
 ### Timestamp format
 
-One column contains the timestamp. Be default, the column will be the timestamp in RFC3339 (a subset of ISO 8601 format), i.e. `YYYY-MM-DDTHH:MM:SSZ`.
+One column contains the timestamp. Be default, the column will be the timestamp
+in RFC3339 (a subset of ISO 8601 format), i.e. `YYYY-MM-DDTHH:MM:SSZ`.
 
-With `--timestampformat epoch_time`, the column will be called `epoch_time`, and the timestamp will be in unix epoch time. This is how the data is stored in an OSM PBF file. This makes processing about 15% faster.
+With `--timestampformat epoch_time`, the column will be called `epoch_time`,
+and the timestamp will be in unix epoch time. This is how the data is stored in
+an OSM PBF file. This makes processing about 15% faster.
 
 ### Example
 
