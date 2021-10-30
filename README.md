@@ -34,11 +34,21 @@ You can download prebuild binary released from the [Github release page](https:/
 
 ## Usage
 
-    osm-tag-csv-history -i mydata.osm.pbf -o mydata.csv
+    osm-tag-csv-history -i mydata.osm.pbf -o mydata.csv.gz
+
+The output is automatically compressed with gzip if the file ends in `.gz`.
 
 ### Tag Filtering
 
-By default, all tag changes are included. With the `--tag`/`-t` argument, only q
+By default, all tag changes are included. With the `--tag`/`-t` argument, only any changes to those tags are included in the output
+
+To produce a CSV with only changes to the `highway` or `building` tag, run this command
+
+    osm-tag-csv-history -i mydata.osm.pbf -o mydata.csv -t highway -t building
+
+
+### Changeset tag column
+
 
 ### Example
 
