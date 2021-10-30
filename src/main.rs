@@ -260,7 +260,7 @@ fn main() -> Result<()> {
     }
 
     let mut curr = objects_iter.next().unwrap();
-    let mut last: Option<osmio::obj_types::RcOSMObj> = None;
+    let mut last: Option<osmio::obj_types::ArcOSMObj> = None;
 
     let mut num_objects = 0;
 
