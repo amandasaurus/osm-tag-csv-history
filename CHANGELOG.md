@@ -1,3 +1,12 @@
+# v0.4.0 - 8 November 2021
+
+* Add `--tag` to only show changes that affect specific OSM tags. Useful to
+  create smaller CSV files
+* Add `--changeset-tag` to include a column for the tag of the changeset that
+  made that change, which needs a pre-processed changeset file created by `osmio`.
+* Update `osmio` dependency
+* Improvments to `--help` (etc.) output
+
 # v0.3.0 - 21 Jan 2020
 
 * The output timestamp can be switched to unix epoch timestamp format, which is
