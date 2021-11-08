@@ -2,6 +2,7 @@
 **/*.rs.bk
 /*.csv
 /*.csv.gz
+/*.csv.zst
 .*.swp
 /*.osm.pbf
 /*.osm.xml
