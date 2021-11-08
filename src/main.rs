@@ -116,7 +116,7 @@ fn main() -> Result<()> {
              )
 
         .arg(Arg::with_name("changeset_tag")
-             .short("C").long("changesets-tag")
+             .short("C").long("changeset-tag")
              .value_name("TAG")
              .takes_value(true).required(false)
              .multiple(true)
