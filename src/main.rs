@@ -125,6 +125,15 @@ fn main() -> Result<()> {
              .requires("changeset_filename")
              )
 
+        .arg(Arg::with_name("uid")
+             .long("uid")
+             .value_name("USERID")
+             .takes_value(true).required(false)
+             .multiple(true).number_of_values(1)
+             .help("Only include changes made by this OSM user (by userid)")
+             )
+
+
 
         .get_matches();
 
@@ -157,11 +166,23 @@ fn main() -> Result<()> {
         .values_of("tag")
         .map(|ts| ts.map(|s| s.to_string()).collect());
 
+    let only_include_uids: Option<Vec<u32>> = match matches.values_of("uid") {
+        None => None,
+        Some(vals) => Some(vals.map(|u| Ok(u.parse()?)).collect::<Result<Vec<u32>>>()?),
+    };
+
     if let Some(only_include_tags) = only_include_tags.as_ref() {
         info!(
             "Only including changes to these {} tag(s): {:?}",
             only_include_tags.len(),
             only_include_tags
+        );
+    }
+
+    if let Some(only_include_uids) = only_include_uids.as_ref() {
+        info!(
+            "Only including changes made by user id {:?}",
+            only_include_uids
         );
     }
 
@@ -269,6 +290,7 @@ fn main() -> Result<()> {
     let mut field_bytes = Vec::with_capacity(25);
     let mut utf8_bytes_buffer = vec![0; 4];
     let started_processing = Instant::now();
+    let mut passes_uid_check;
 
     loop {
         // Logging output
@@ -290,14 +312,24 @@ fn main() -> Result<()> {
             num_objects = 1;
         }
 
+        passes_uid_check = if let (Some(this_uid), Some(only_include_uids)) =
+            (curr.uid(), only_include_uids.as_ref())
+        {
+            // We have uid's & we're filtering based on uids
+            only_include_uids.iter().any(|u| u == &this_uid)
+        } else {
+            true
+        };
+
         let has_tags = match last {
             None => curr.tagged(),
             Some(ref l) => l.tagged() || curr.tagged(),
         };
+        let process_object = has_tags && passes_uid_check;
 
         // The 'only_include_tags' could be checked here to speed it up
 
-        if has_tags {
+        if process_object {
             let (last_tags, last_version) = match last {
                 None => (None, "".to_string()),
                 Some(ref last) => {
