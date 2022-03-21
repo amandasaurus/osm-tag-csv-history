@@ -36,7 +36,7 @@ You can download prebuild binary released from the [Github release page](https:/
 
     osm-tag-csv-history -i mydata.osm.pbf -o mydata.csv.gz
 
-The output is automatically compressed with gzip if the file ends in `.gz`.
+The output is automatically compressed with gzip if the file ends in `.gz`. `.csv` filename for CSV files, `.tsv` for TSV (tab separated).
 
 ### Tag Filtering
 
@@ -46,9 +46,16 @@ To produce a CSV with only changes to the `highway` or `building` tag, run this 
 
     osm-tag-csv-history -i mydata.osm.pbf -o mydata.csv -t highway -t building
 
+### Object Type Filtering
+
+By default, all OSM objects in the file are included. With `--object-types`/`-T` only some can be output, e.g. ` -T wr ` for only ways & relations.
+
+### User (ID) Type Filtering
+
+Use `--uid` to only output object changes by this OSM users (can be specified multiple times)
+
 
 ### Changeset tag column
-
 
 ### Example
 
