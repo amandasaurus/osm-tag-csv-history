@@ -12,14 +12,16 @@ extern crate read_progress;
 extern crate rusqlite;
 extern crate serde_json;
 
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::BufReader;
+use std::str::FromStr;
 use std::time::Instant;
 
 use clap::{App, Arg};
-use osmio::{OSMObj, OSMObjBase, OSMReader};
+use osmio::{OSMObj, OSMObjBase, OSMObjectType, OSMReader};
 
 use anyhow::{Context, Result};
 use flate2::write::GzEncoder;
@@ -27,9 +29,86 @@ use flate2::Compression;
 use read_progress::ReaderWithSize;
 use rusqlite::{Connection, OptionalExtension};
 
-enum TimestampFormat {
-    Datetime,
-    EpochTime,
+enum OutputFormat {
+    CSV,
+    TSV,
+}
+
+#[derive(Debug)]
+enum Column {
+    Key,
+    NewValue,
+    OldValue,
+    Id,
+    RawId,
+    NewVersion,
+    OldVersion,
+    IsoDatetime,
+    EpochDatetime,
+    Username,
+    Uid,
+    ChangesetId,
+
+    ChangesetTag(String),
+
+    TagCountDelta,
+    ObjectTypeShort,
+    ObjectTypeLong,
+}
+
+impl FromStr for Column {
+    type Err = anyhow::Error;
+    fn from_str(val: &str) -> Result<Self, Self::Err> {
+        match val.to_lowercase().trim() {
+            "key" => Ok(Column::Key),
+            "new_value" => Ok(Column::NewValue),
+            "old_value" => Ok(Column::OldValue),
+            "id" => Ok(Column::Id),
+            "raw_id" => Ok(Column::RawId),
+            "new_version" => Ok(Column::NewVersion),
+            "old_version" => Ok(Column::OldVersion),
+            "datetime" | "iso_datetime" => Ok(Column::IsoDatetime),
+            "epoch" | "epoch_datetime" => Ok(Column::EpochDatetime),
+            "username" => Ok(Column::Username),
+            "uid" => Ok(Column::Uid),
+            "changeset_id" => Ok(Column::ChangesetId),
+            col if col.starts_with("changeset.") => Ok(Column::ChangesetTag(
+                col.strip_prefix("changeset.").unwrap().to_string(),
+            )),
+            "tag_count_delta" => Ok(Column::TagCountDelta),
+            "object_type_short" => Ok(Column::ObjectTypeShort),
+            "object_type_long" => Ok(Column::ObjectTypeLong),
+
+            col => Err(anyhow::anyhow!("Unknown column value: {}", col)),
+        }
+    }
+}
+
+impl Column {
+    fn is_changeset_tag(&self) -> bool {
+        matches!(self, Column::ChangesetTag(_))
+    }
+
+    fn header(&self) -> Cow<str> {
+        match self {
+            Column::Key => "key".into(),
+            Column::NewValue => "new_value".into(),
+            Column::OldValue => "old_value".into(),
+            Column::Id => "id".into(),
+            Column::RawId => "raw_id".into(),
+            Column::NewVersion => "new_version".into(),
+            Column::OldVersion => "old_version".into(),
+            Column::IsoDatetime => "iso_datetime".into(),
+            Column::EpochDatetime => "epoch_datetime".into(),
+            Column::Username => "username".into(),
+            Column::Uid => "uid".into(),
+            Column::ChangesetId => "changeset_id".into(),
+            Column::ChangesetTag(t) => format!("changeset_{}", t).into(),
+            Column::TagCountDelta => "tag_count_delta".into(),
+            Column::ObjectTypeShort => "object_type_short".into(),
+            Column::ObjectTypeLong => "object_type_long".into(),
+        }
+    }
 }
 
 fn main() -> Result<()> {
@@ -90,15 +169,6 @@ fn main() -> Result<()> {
              .help("with -v, how often (in sec.) to print progress messages")
              )
 
-        .arg(Arg::with_name("timestamp_format")
-             .long("timestamp-format")
-             .takes_value(true).required(false)
-             .possible_values(&["datetime", "epoch_time"])
-             .default_value("datetime")
-             .hidden_short_help(true)
-             .help("What format to use for time column in output file?")
-             )
-
         .arg(Arg::with_name("tag")
              .short("t").long("tag")
              .value_name("TAG")
@@ -115,16 +185,6 @@ fn main() -> Result<()> {
              .help("Filename of the changeset file")
              )
 
-        .arg(Arg::with_name("changeset_tag")
-             .short("C").long("changeset-tag")
-             .value_name("TAG")
-             .takes_value(true).required(false)
-             .multiple(true)
-             .help("Include a column with this changeset tag")
-             .long_help("Include a column (at the end) called changeset_X, with the changeset tag. e.g. -C created_by will add a column changeset_created_by with the value of the created_by tag to every object.\nRequires that the --changesets argument is given\nCan be given multiple times.")
-             .requires("changeset_filename")
-             )
-
         .arg(Arg::with_name("uid")
              .long("uid")
              .value_name("USERID")
@@ -133,6 +193,30 @@ fn main() -> Result<()> {
              .help("Only include changes made by this OSM user (by userid)")
              )
 
+
+        .arg(Arg::with_name("output_format")
+             .long("output-format")
+             .takes_value(true).required(false)
+             .help("output format")
+             .possible_values(&["auto", "csv", "tsv"])
+             .hidden_short_help(true)
+             .default_value("auto")
+             )
+
+        .arg(Arg::with_name("columns")
+             .short("C").long("columns")
+             .takes_value(true).required(false)
+             .default_value("key,new_value,old_value,id,new_version,old_version,datetime,username,uid,changeset_id")
+             )
+
+        .arg(Arg::with_name("object-types")
+             .short("T").long("object-types")
+             .value_name("nwr")
+             .help("Only include these OSM Object types")
+             .long_help("Only include these OSM Object types. Specify a letter for each type (n)ode/(w)way/(r)elation, e.g. -T wr = only ways & relations")
+             .takes_value(true).required(false)
+             .default_value("nwr")
+             )
 
 
         .get_matches();
@@ -150,11 +234,6 @@ fn main() -> Result<()> {
     info!("Beginning processing of {}", input_path);
 
     let log_frequency: f32 = matches.value_of("log-frequency").unwrap().parse()?;
-    let timestamp_format = match matches.value_of("timestamp_format").unwrap() {
-        "datetime" => TimestampFormat::Datetime,
-        "epoch_time" => TimestampFormat::EpochTime,
-        _ => unreachable!(),
-    };
 
     let file =
         File::open(input_path).with_context(|| format!("opening input file {}", input_path))?;
@@ -171,6 +250,26 @@ fn main() -> Result<()> {
         Some(vals) => Some(vals.map(|u| Ok(u.parse()?)).collect::<Result<Vec<u32>>>()?),
     };
 
+    let only_include_types = match matches.value_of("object-types") {
+        None => (true, true, true),
+        Some(object_types) => {
+            let object_types = object_types.to_lowercase();
+            (
+                object_types.contains("n"),
+                object_types.contains("w"),
+                object_types.contains("r"),
+            )
+        }
+    };
+
+    let columns: Vec<Column> = matches
+        .value_of("columns")
+        .unwrap()
+        .split(",")
+        .map(|col_str| col_str.parse())
+        .collect::<Result<Vec<Column>>>()?;
+    debug!("columns: {:?}", columns);
+
     if let Some(only_include_tags) = only_include_tags.as_ref() {
         info!(
             "Only including changes to these {} tag(s): {:?}",
@@ -186,27 +285,18 @@ fn main() -> Result<()> {
         );
     }
 
+    // MUST be replaced with above columns
     // changesets?
-    let changeset_tags = match matches.values_of("changeset_tags") {
-        None => None,
-        Some(tags) => {
-            let tags = tags
-                .into_iter()
-                .map(|s| s.to_string())
-                .collect::<Vec<String>>();
-            info!(
-                "Including columns for the following {} changeset tags: {:?}",
-                tags.len(),
-                tags
-            );
-            let lookup =
-                ChangesetTagLookup::from_filename(matches.value_of("changeset_filename").unwrap())?;
-            debug!(
-                "Reading changeset sqlite from {}",
-                matches.value_of("changeset_filename").unwrap()
-            );
-            Some((tags, lookup))
-        }
+    let changeset_lookup = if columns.iter().any(Column::is_changeset_tag) {
+        let lookup =
+            ChangesetTagLookup::from_filename(matches.value_of("changeset_filename").unwrap())?;
+        debug!(
+            "Reading changeset sqlite from {}",
+            matches.value_of("changeset_filename").unwrap()
+        );
+        Some(lookup)
+    } else {
+        None
     };
 
     let include_header = match (
@@ -219,6 +309,30 @@ fn main() -> Result<()> {
         (true, true) => unreachable!(),
     };
 
+    let output_format = match (
+        matches.value_of("output_format"),
+        matches.value_of("output"),
+    ) {
+        (Some("csv"), _) => OutputFormat::CSV,
+        (Some("tsv"), _) => OutputFormat::TSV,
+        (Some("auto"), Some("-")) => OutputFormat::CSV,
+        (Some("auto"), Some(filename)) if filename.starts_with("/dev/fd/") => OutputFormat::CSV,
+        (Some("auto"), Some(filename))
+            if filename.ends_with(".csv") || filename.ends_with(".csv.gz") =>
+        {
+            OutputFormat::CSV
+        }
+        (Some("auto"), Some(filename))
+            if filename.ends_with(".tsv") || filename.ends_with(".tsv.gz") =>
+        {
+            OutputFormat::TSV
+        }
+        (format, filename) => unreachable!(
+            "Unable to determine output format: format={:?} filename={:?}",
+            format, filename
+        ),
+    };
+
     let output_path = matches.value_of("output").unwrap();
     let output_writer: Box<dyn std::io::Write> = if output_path == "-" {
         Box::new(std::io::stdout())
@@ -227,16 +341,16 @@ fn main() -> Result<()> {
     };
     let output_writer = match matches.value_of("compression") {
         Some("auto") => {
-            if output_path == "-" {
+            if output_path == "-" || output_path.starts_with("/dev/fd/") {
                 // stdout, so no compression
-                trace!("Output is '-', no compression");
+                trace!("Output is '-' or a FD, no compression");
                 output_writer
-            } else if output_path.ends_with(".csv.gz") {
-                trace!("Output file ends with .csv.gz so using regular gzip");
+            } else if output_path.ends_with(".csv.gz") || output_path.ends_with(".tsv.gz") {
+                trace!("Output file ends with .[ct]sv.gz so using regular gzip");
                 Box::new(GzEncoder::new(output_writer, Compression::default()))
-            } else if output_path.ends_with(".csv") {
+            } else if output_path.ends_with(".csv") || output_path.ends_with(".tsv") {
                 // uncompressed
-                trace!("Output file ends with .csv so no compression");
+                trace!("Output file ends with .[ct]sv so no compression");
                 output_writer
             } else {
                 bail!(
@@ -249,32 +363,19 @@ fn main() -> Result<()> {
         Some("gzip") => Box::new(GzEncoder::new(output_writer, Compression::default())),
         _ => unreachable!(),
     };
-    let mut output = csv::Writer::from_writer(output_writer);
+    let mut output = csv::WriterBuilder::new();
+    match output_format {
+        OutputFormat::CSV => {}
+        OutputFormat::TSV => {
+            output.delimiter(b'\t');
+        }
+    }
+    let mut output = output.from_writer(output_writer);
 
     if include_header {
         trace!("Writing CSV header");
-        for header_field in &[
-            "key",
-            "new_value",
-            "old_value",
-            "id",
-            "new_version",
-            "old_version",
-            match timestamp_format {
-                TimestampFormat::Datetime => "datetime",
-                TimestampFormat::EpochTime => "epoch_time",
-            },
-            "username",
-            "uid",
-            "changeset_id",
-        ] {
-            output.write_field(header_field)?;
-        }
-
-        if let Some((changeset_tags, _)) = changeset_tags.as_ref() {
-            for changeset_tag in changeset_tags {
-                output.write_field(format!("changeset_{}", changeset_tag))?;
-            }
+        for c in columns.iter() {
+            output.write_field(c.header().as_ref())?;
         }
 
         output.write_record(None::<&[u8]>)?;
@@ -291,6 +392,7 @@ fn main() -> Result<()> {
     let mut utf8_bytes_buffer = vec![0; 4];
     let started_processing = Instant::now();
     let mut passes_uid_check;
+    let mut passes_type_check;
 
     loop {
         // Logging output
@@ -321,11 +423,18 @@ fn main() -> Result<()> {
             true
         };
 
+        passes_type_check = match (curr.object_type(), only_include_types) {
+            (OSMObjectType::Node, (true, _, _)) => true,
+            (OSMObjectType::Way, (_, true, _)) => true,
+            (OSMObjectType::Relation, (_, _, true)) => true,
+            _ => false,
+        };
+
         let has_tags = match last {
             None => curr.tagged(),
             Some(ref l) => l.tagged() || curr.tagged(),
         };
-        let process_object = has_tags && passes_uid_check;
+        let process_object = has_tags && passes_uid_check && passes_type_check;
 
         // The 'only_include_tags' could be checked here to speed it up
 
@@ -356,8 +465,10 @@ fn main() -> Result<()> {
             keys.sort();
             keys.dedup();
 
-            let mut last_value;
-            let mut curr_value;
+            let mut last_value: &str;
+            let mut last_value_existed;
+            let mut curr_value: &str;
+            let mut curr_value_exists;
 
             for key in keys.into_iter() {
                 // Should we skip this tag?
@@ -369,88 +480,138 @@ fn main() -> Result<()> {
                 {
                     continue;
                 }
-                last_value = if let Some(ref lt) = last_tags {
-                    lt.get(key).unwrap_or(&"")
+                if let Some(&value) = last_tags.as_ref().and_then(|lt| lt.get(key)) {
+                    last_value = value;
+                    last_value_existed = true;
                 } else {
-                    &""
+                    last_value = &"";
+                    last_value_existed = false;
                 };
-                curr_value = curr_tags.get(key).unwrap_or(&"");
+
+                if let Some(value) = curr_tags.get(key) {
+                    curr_value = value;
+                    curr_value_exists = true;
+                } else {
+                    curr_value = &"";
+                    curr_value_exists = false;
+                };
                 if last_value == curr_value {
                     continue;
                 }
 
                 trace!(
-                    "Write tag change {} {:?} → {:?}",
+                    "Write tag change {} {:?} → {:?} ({}→{})",
                     key,
                     last_value,
-                    curr_value
+                    curr_value,
+                    last_value_existed,
+                    curr_value_exists,
                 );
 
-                for (should_escape, field) in [
-                    (true, key),
-                    (true, curr_value),
-                    (true, last_value),
-                    (
-                        false,
-                        &format!("{:?}{}", curr.object_type(), curr.id()).as_str(),
-                    ),
-                    (false, &curr.version().unwrap().to_string().as_str()),
-                    (false, &last_version.as_str()),
-                    (
-                        false,
-                        &(match timestamp_format {
-                            TimestampFormat::Datetime => {
-                                curr.timestamp().as_ref().unwrap().to_iso_string()
-                            }
-                            TimestampFormat::EpochTime => curr
-                                .timestamp()
+                for column in columns.iter() {
+                    field_bytes.clear();
+                    match column {
+                        Column::Key => {
+                            encode_field(key, &mut field_bytes, &mut utf8_bytes_buffer);
+                        }
+                        Column::NewValue => {
+                            encode_field(curr_value, &mut field_bytes, &mut utf8_bytes_buffer);
+                        }
+                        Column::OldValue => {
+                            encode_field(last_value, &mut field_bytes, &mut utf8_bytes_buffer);
+                        }
+                        Column::Id => {
+                            field_bytes.extend(
+                                format!("{:?}{}", curr.object_type(), curr.id())
+                                    .as_str()
+                                    .bytes(),
+                            );
+                        }
+                        Column::RawId => field_bytes.extend(curr.id().to_string().as_str().bytes()),
+                        Column::NewVersion => {
+                            field_bytes.extend(curr.version().unwrap().to_string().bytes());
+                        }
+                        Column::OldVersion => {
+                            field_bytes.extend(last_version.as_str().bytes());
+                        }
+                        Column::IsoDatetime => {
+                            field_bytes
+                                .extend(curr.timestamp().as_ref().unwrap().to_iso_string().bytes());
+                        }
+                        Column::EpochDatetime => {
+                            field_bytes.extend(
+                                curr.timestamp()
+                                    .as_ref()
+                                    .unwrap()
+                                    .to_epoch_number()
+                                    .to_string()
+                                    .bytes(),
+                            );
+                        }
+                        Column::Username => {
+                            encode_field(
+                                curr.user().unwrap(),
+                                &mut field_bytes,
+                                &mut utf8_bytes_buffer,
+                            );
+                        }
+                        Column::Uid => {
+                            field_bytes.extend(curr.uid().unwrap().to_string().bytes());
+                        }
+                        Column::ChangesetId => {
+                            field_bytes.extend(curr.changeset_id().unwrap().to_string().bytes());
+                        }
+                        Column::ObjectTypeShort => {
+                            field_bytes.extend(match curr.object_type() {
+                                OSMObjectType::Node => b"n",
+                                OSMObjectType::Way => b"w",
+                                OSMObjectType::Relation => b"r",
+                            });
+                        }
+                        Column::ObjectTypeLong => {
+                            field_bytes.extend(match curr.object_type() {
+                                OSMObjectType::Node => b"node".iter(),
+                                OSMObjectType::Way => b"way".iter(),
+                                OSMObjectType::Relation => b"relation".iter(),
+                            });
+                        }
+                        Column::ChangesetTag(changeset_tag) => {
+                            match changeset_lookup
                                 .as_ref()
                                 .unwrap()
-                                .to_epoch_number()
-                                .to_string(),
-                        })
-                        .as_str(),
-                    ),
-                    (true, &curr.user().unwrap()),
-                    (false, &curr.uid().unwrap().to_string().as_str()),
-                    (false, &curr.changeset_id().unwrap().to_string().as_str()),
-                ]
-                .iter()
-                {
-                    if *should_escape {
-                        encode_field(field, &mut field_bytes, &mut utf8_bytes_buffer);
-                    } else {
-                        field_bytes.clear();
-                        field_bytes.extend(field.bytes());
-                    }
-
-                    output.write_field(&field_bytes)?;
-                }
-
-                if let Some((changeset_tags, changeset_tag_lookup)) = changeset_tags.as_ref() {
-                    match changeset_tag_lookup.tags(curr.changeset_id().unwrap())? {
-                        None => {
-                            trace!("No tags found for changeset {:?}", curr.changeset_id());
-                            // no changeset found
-                            for _ in 0..changeset_tags.len() {
-                                output.write_field("")?;
-                            }
-                        }
-                        Some(tags_for_changeset) => {
-                            for changeset_tag in changeset_tags {
-                                match tags_for_changeset
-                                    .iter()
-                                    .filter_map(
-                                        |(k, v)| if k == changeset_tag { Some(v) } else { None },
-                                    )
-                                    .next()
-                                {
-                                    None => output.write_field("")?,
-                                    Some(v) => output.write_field(v)?,
+                                .tags(curr.changeset_id().unwrap())?
+                            {
+                                None => {
+                                    trace!("No tags found for changeset {:?}", curr.changeset_id());
+                                }
+                                Some(tags_for_changeset) => {
+                                    if let Some(v) =
+                                        tags_for_changeset
+                                            .iter()
+                                            .filter_map(|(k, v)| {
+                                                if k == changeset_tag {
+                                                    Some(v)
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                            .next()
+                                    {
+                                        field_bytes.extend(v.bytes());
+                                    }
                                 }
                             }
                         }
+                        Column::TagCountDelta => {
+                            field_bytes.extend(match (last_value_existed, curr_value_exists) {
+                                (false, false) => unreachable!(),
+                                (false, true) => b"+1".iter(),
+                                (true, false) => b"-1".iter(),
+                                (true, true) => b"0".iter(),
+                            });
+                        }
                     }
+                    output.write_field(&field_bytes)?;
                 }
 
                 output.write_record(None::<&[u8]>)?;

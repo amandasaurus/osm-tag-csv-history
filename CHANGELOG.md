@@ -1,3 +1,15 @@
+# Unreleased
+
+* Output in TSV format possible
+* Output columns can now be specified on the command line, and reordered. The
+  method to specify epoch timestamps & changeset tags has been changed
+* New output columns:
+  * `tag_count_delta` which can easy tell you if the tag was
+     added, removed, or merely changed
+  * `raw_id` ID of the object just as a number
+  * `object_type_short` & `object_type_long` the object type (either `n`/`w`/`r`, or `node`/`way`/`relation`)
+* Can now filter by object type with `-T nwr`/`--object-type nwr`
+
 # v0.4.0 - 8 November 2021
 
 * Add `--tag` to only show changes that affect specific OSM tags. Useful to
