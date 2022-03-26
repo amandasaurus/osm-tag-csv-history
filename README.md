@@ -113,7 +113,9 @@ it will be escaped with a backslash (i.e. a newline is written as 2 characters,
 
 ### Columns
 
-The columns can be changed with `--columns`/`-C`, e.g (` -C key,new_value,uid `)
+The columns can be changed with `--columns`/`-C`, e.g (` -C key,new_value,uid `).
+
+The default value is `key,new_value,old_value,id,new_version,old_version,datetime,username,uid,changeset_id`
 
 Default values, in order
 
@@ -136,11 +138,15 @@ Default values, in order
 
 * `object_type_short`/`object_type_long` OSM type of the object (`n`/`w`/`r`, or `node`/`way`/`relation`)
 * `raw_id` OSM id of the object
-* `epoch_datetime` Date time (Unix epoch time) the object was created. This is how the data is stored in an OSM PBF file. This (rather than the ISO string `datetime`) makes processing about 15% faster (because the conversion of epoch seconds in integer to ISO datetime format string doesn't need to be done)
-
-* `tag_count_delta` `0` if the tag is changed, `+1` if the tag is added, `-1`
+* `epoch_datetime` Date time (Unix epoch time) the object was created. This is
+  how the data is stored in an OSM PBF file. This (rather than the ISO string
+  `datetime`) makes processing about 15% faster (because the conversion of
+  epoch seconds in integer to ISO datetime format string doesn't need to be
+  done)
+* `tag_count_delta`: `0` if the tag is changed, `+1` if the tag is added, `-1`
   if the tag was removed. This is a more robust way to determine if a tag was
-  added or removed
+  added or removed. Think of it as “the change in the number of OSM objects
+  with this key”
 
 ### Example
 
