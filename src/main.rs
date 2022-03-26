@@ -29,6 +29,7 @@ use flate2::Compression;
 use read_progress::ReaderWithSize;
 use rusqlite::{Connection, OptionalExtension};
 
+#[allow(clippy::upper_case_acronyms)]
 enum OutputFormat {
     CSV,
     TSV,
@@ -255,9 +256,9 @@ fn main() -> Result<()> {
         Some(object_types) => {
             let object_types = object_types.to_lowercase();
             (
-                object_types.contains("n"),
-                object_types.contains("w"),
-                object_types.contains("r"),
+                object_types.contains('n'),
+                object_types.contains('w'),
+                object_types.contains('r'),
             )
         }
     };
@@ -265,7 +266,7 @@ fn main() -> Result<()> {
     let columns: Vec<Column> = matches
         .value_of("columns")
         .unwrap()
-        .split(",")
+        .split(',')
         .map(|col_str| col_str.parse())
         .collect::<Result<Vec<Column>>>()?;
     debug!("columns: {:?}", columns);
@@ -423,12 +424,12 @@ fn main() -> Result<()> {
             true
         };
 
-        passes_type_check = match (curr.object_type(), only_include_types) {
-            (OSMObjectType::Node, (true, _, _)) => true,
-            (OSMObjectType::Way, (_, true, _)) => true,
-            (OSMObjectType::Relation, (_, _, true)) => true,
-            _ => false,
-        };
+        passes_type_check = matches!(
+            (curr.object_type(), only_include_types),
+            (OSMObjectType::Node, (true, _, _))
+                | (OSMObjectType::Way, (_, true, _))
+                | (OSMObjectType::Relation, (_, _, true))
+        );
 
         let has_tags = match last {
             None => curr.tagged(),
@@ -484,7 +485,7 @@ fn main() -> Result<()> {
                     last_value = value;
                     last_value_existed = true;
                 } else {
-                    last_value = &"";
+                    last_value = "";
                     last_value_existed = false;
                 };
 
@@ -492,7 +493,7 @@ fn main() -> Result<()> {
                     curr_value = value;
                     curr_value_exists = true;
                 } else {
-                    curr_value = &"";
+                    curr_value = "";
                     curr_value_exists = false;
                 };
                 if last_value == curr_value {
@@ -634,7 +635,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn encode_field(field: &str, bytes: &mut Vec<u8>, mut utf8_bytes_buffer: &mut Vec<u8>) {
+fn encode_field(field: &str, bytes: &mut Vec<u8>, utf8_bytes_buffer: &mut Vec<u8>) {
     bytes.clear();
 
     for c in field.chars() {
@@ -645,7 +646,7 @@ fn encode_field(field: &str, bytes: &mut Vec<u8>, mut utf8_bytes_buffer: &mut Ve
             bytes.push(b'\\');
             bytes.push(b'n');
         } else {
-            c.encode_utf8(&mut utf8_bytes_buffer);
+            c.encode_utf8(utf8_bytes_buffer);
             bytes.extend(&utf8_bytes_buffer[..c.len_utf8()]);
         }
     }
