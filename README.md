@@ -1,5 +1,7 @@
 # osm-tag-csv-history
 
+![Crates.io](https://img.shields.io/crates/v/osm-tag-csv-history)
+
 Use CSV tools to see who's mapping what in OpenStreetMap.
 
 Given a OSM history file, it produces a CSV file, where each row refers to a
