@@ -1,8 +1,8 @@
 /target
 **/*.rs.bk
-/*.csv
-/*.csv.gz
-/*.csv.zst
+/*.[tc]sv
+/*.[tc]sv.gz
+/*.[tc]sv.zst
 .*.swp
 /*.osm.pbf
 /*.osm.xml
