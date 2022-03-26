@@ -1,4 +1,4 @@
-# Unreleased
+# v0.5.0 - 26 March 2022
 
 * Output in TSV format possible
 * Output columns can now be specified on the command line, and reordered. The
