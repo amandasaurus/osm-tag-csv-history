@@ -206,8 +206,27 @@ fn main() -> Result<()> {
 
         .arg(Arg::with_name("columns")
              .short("C").long("columns")
+             .value_name("COL,COL,...")
              .takes_value(true).required(false)
              .default_value("key,new_value,old_value,id,new_version,old_version,datetime,username,uid,changeset_id")
+             .long_help("Output the following columns, in order:
+    key: Tag key
+    new_value: Old value of the tag
+    old_value: New value of the tag
+    id: OSM object type & id (e.g. w123)
+    raw_id: just the numeric if
+    object_type_short, osm_type_short: N, W, R for the object
+    object_type_long, osm_type_long: node, way, relation for the object
+    new_version: Old version number
+    old_version: New version number:
+    datetime, iso_datetime, iso_timestamp: ISO Timestamp of the new object
+    epoch, epoch_datetime, epoch_timestamp: Epoch timestamp of the new object
+    username: Username of the new object
+    uid: UID of new object:
+    changeset_id: Changeset ID of the new object
+    changeset.TAG: TAG of the changeset 
+    tag_count_delta: What is the totaly change to the number
+                ")
              )
 
         .arg(Arg::with_name("object-types")
