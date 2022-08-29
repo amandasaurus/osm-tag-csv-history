@@ -65,7 +65,7 @@ impl FromStr for Column {
             "new_value" => Ok(Column::NewValue),
             "old_value" => Ok(Column::OldValue),
             "id" => Ok(Column::Id),
-            "raw_id" => Ok(Column::RawId),
+            "raw_id" | "osm_raw_id" => Ok(Column::RawId),
             "new_version" => Ok(Column::NewVersion),
             "old_version" => Ok(Column::OldVersion),
             "datetime" | "iso_datetime" | "iso_timestamp" => Ok(Column::IsoDatetime),
@@ -77,8 +77,8 @@ impl FromStr for Column {
                 col.strip_prefix("changeset.").unwrap().to_string(),
             )),
             "tag_count_delta" => Ok(Column::TagCountDelta),
-            "object_type_short" => Ok(Column::ObjectTypeShort),
-            "object_type_long" => Ok(Column::ObjectTypeLong),
+            "object_type_short" | "osm_type_short" => Ok(Column::ObjectTypeShort),
+            "object_type_long" | "osm_type_long" => Ok(Column::ObjectTypeLong),
 
             col => Err(anyhow::anyhow!("Unknown column value: {}", col)),
         }
