@@ -1,3 +1,7 @@
+# Unreleased
+
+* Minor --help output improvements
+
 # v0.5.0 - 26 March 2022
 
 * Output in TSV format possible
