@@ -35,13 +35,16 @@ enum OutputFormat {
     TSV,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Column {
     Key,
     NewValue,
     OldValue,
+    Value,
     Id,
     RawId,
+    ObjectTypeShort,
+    ObjectTypeLong,
     NewVersion,
     OldVersion,
     IsoDatetime,
@@ -53,8 +56,7 @@ enum Column {
     ChangesetTag(String),
 
     TagCountDelta,
-    ObjectTypeShort,
-    ObjectTypeLong,
+    ValueCountDelta,
 }
 
 impl FromStr for Column {
@@ -64,6 +66,7 @@ impl FromStr for Column {
             "key" => Ok(Column::Key),
             "new_value" => Ok(Column::NewValue),
             "old_value" => Ok(Column::OldValue),
+            "value" => Ok(Column::Value),
             "id" => Ok(Column::Id),
             "raw_id" | "osm_raw_id" => Ok(Column::RawId),
             "new_version" => Ok(Column::NewVersion),
@@ -77,6 +80,7 @@ impl FromStr for Column {
                 col.strip_prefix("changeset.").unwrap().to_string(),
             )),
             "tag_count_delta" => Ok(Column::TagCountDelta),
+            "value_count_delta" => Ok(Column::ValueCountDelta),
             "object_type_short" | "osm_type_short" => Ok(Column::ObjectTypeShort),
             "object_type_long" | "osm_type_long" => Ok(Column::ObjectTypeLong),
 
@@ -95,6 +99,7 @@ impl Column {
             Column::Key => "key".into(),
             Column::NewValue => "new_value".into(),
             Column::OldValue => "old_value".into(),
+            Column::Value => "value".into(),
             Column::Id => "id".into(),
             Column::RawId => "raw_id".into(),
             Column::NewVersion => "new_version".into(),
@@ -106,10 +111,16 @@ impl Column {
             Column::ChangesetId => "changeset_id".into(),
             Column::ChangesetTag(t) => format!("changeset_{}", t).into(),
             Column::TagCountDelta => "tag_count_delta".into(),
+            Column::ValueCountDelta => "value_count_delta".into(),
             Column::ObjectTypeShort => "object_type_short".into(),
             Column::ObjectTypeLong => "object_type_long".into(),
         }
     }
+}
+
+enum LineType {
+    OldNewValue,
+    SeparateLines,
 }
 
 fn main() -> Result<()> {
@@ -118,7 +129,7 @@ fn main() -> Result<()> {
         .about("Create a CSV file detailing tagging changes in an OSM file")
 
         .arg(Arg::with_name("input")
-             .short("i").long("input")
+             .short('i').long("input")
              .value_name("INPUT.osh.pbf")
              .help("Input file to convert.")
              .long_help("Read OSM data from this file. If it's a .osh.pbf history file, the full history will be output. Regular non-history files can be processed too")
@@ -126,14 +137,14 @@ fn main() -> Result<()> {
              )
 
         .arg(Arg::with_name("output")
-             .short("o").long("output")
+             .short('o').long("output")
              .value_name("OUTPUT.csv[.gz]")
              .help("Where to write the output. Use - for stdout. with auto compression (default), if this file ends with .gz, then it will be gzip compressed")
              .takes_value(true).required(true)
              )
 
         .arg(Arg::with_name("verbosity")
-             .short("v").multiple(true)
+             .short('v').multiple_occurrences(true)
              .help("Increase verbosity")
              )
 
@@ -152,7 +163,7 @@ fn main() -> Result<()> {
              )
 
         .arg(Arg::with_name("compression")
-             .short("c").long("compression")
+             .short('c').long("compression")
              .takes_value(true).required(false)
              .possible_values(&["none", "auto", "gzip"])
              .hidden_short_help(true)
@@ -171,7 +182,7 @@ fn main() -> Result<()> {
              )
 
         .arg(Arg::with_name("tag")
-             .short("t").long("tag")
+             .short('t').long("tag")
              .value_name("TAG")
              .takes_value(true).required(false)
              .multiple(true).number_of_values(1)
@@ -205,7 +216,7 @@ fn main() -> Result<()> {
              )
 
         .arg(Arg::with_name("columns")
-             .short("C").long("columns")
+             .short('C').long("columns")
              .value_name("COL,COL,...")
              .takes_value(true).required(false)
              .default_value("key,new_value,old_value,id,new_version,old_version,datetime,username,uid,changeset_id")
@@ -230,14 +241,21 @@ fn main() -> Result<()> {
              )
 
         .arg(Arg::with_name("object-types")
-             .short("T").long("object-types")
+             .short('T').long("object-types")
              .value_name("nwr")
              .help("Only include these OSM Object types")
              .long_help("Only include these OSM Object types. Specify a letter for each type (n)ode/(w)way/(r)elation, e.g. -T wr = only ways & relations")
              .takes_value(true).required(false)
              .default_value("nwr")
              )
-
+        
+        .arg(Arg::with_name("line-type")
+             .long("line-type")
+             .takes_value(true)
+             .value_parser(["oldnew", "separate"])
+             .default_value("oldnew")
+             )
+        
 
         .get_matches();
 
@@ -289,6 +307,12 @@ fn main() -> Result<()> {
         .map(|col_str| col_str.parse())
         .collect::<Result<Vec<Column>>>()?;
     debug!("columns: {:?}", columns);
+
+    let line_type = if columns.iter().any(|c| *c == Column::ValueCountDelta) {
+        LineType::SeparateLines
+    } else {
+        LineType::OldNewValue
+    };
 
     if let Some(only_include_tags) = only_include_tags.as_ref() {
         info!(
@@ -528,113 +552,153 @@ fn main() -> Result<()> {
                     curr_value_exists,
                 );
 
-                for column in columns.iter() {
-                    field_bytes.clear();
-                    match column {
-                        Column::Key => {
-                            encode_field(key, &mut field_bytes, &mut utf8_bytes_buffer);
+                let mut i: u8 = 0;
+
+                loop {
+                    match (&line_type, i) {
+                        (LineType::OldNewValue, 0) => {},
+                        (LineType::OldNewValue, 1) => { break; },
+                        (LineType::OldNewValue, _) => { unreachable!() },
+                        (LineType::SeparateLines, 0) => {
+                            if !last_value_existed {
+                                i += 1;
+                                continue;
+                            }
                         }
-                        Column::NewValue => {
-                            encode_field(curr_value, &mut field_bytes, &mut utf8_bytes_buffer);
+                        (LineType::SeparateLines, 1) => {
+                            if !curr_value_exists {
+                                i += 1;
+                                continue;
+                            }
                         }
-                        Column::OldValue => {
-                            encode_field(last_value, &mut field_bytes, &mut utf8_bytes_buffer);
-                        }
-                        Column::Id => {
-                            field_bytes.extend(
-                                format!("{:?}{}", curr.object_type(), curr.id())
-                                    .as_str()
-                                    .bytes(),
-                            );
-                        }
-                        Column::RawId => field_bytes.extend(curr.id().to_string().as_str().bytes()),
-                        Column::NewVersion => {
-                            field_bytes.extend(curr.version().unwrap().to_string().bytes());
-                        }
-                        Column::OldVersion => {
-                            field_bytes.extend(last_version.as_str().bytes());
-                        }
-                        Column::IsoDatetime => {
-                            field_bytes
-                                .extend(curr.timestamp().as_ref().unwrap().to_iso_string().bytes());
-                        }
-                        Column::EpochDatetime => {
-                            field_bytes.extend(
-                                curr.timestamp()
+                        (LineType::SeparateLines, 2) => { break; },
+                        (LineType::SeparateLines, _) => { unreachable!() },
+                    }
+
+                    for column in columns.iter() {
+                        field_bytes.clear();
+                        match column {
+                            Column::Key => {
+                                encode_field(key, &mut field_bytes, &mut utf8_bytes_buffer);
+                            }
+                            Column::NewValue => {
+                                encode_field(curr_value, &mut field_bytes, &mut utf8_bytes_buffer);
+                            }
+                            Column::OldValue => {
+                                encode_field(last_value, &mut field_bytes, &mut utf8_bytes_buffer);
+                            }
+                            Column::Value => {
+                                encode_field(
+                                    match i {
+                                        0 => last_value,
+                                        1 => curr_value,
+                                        _ => unreachable!()
+                                    }, &mut field_bytes, &mut utf8_bytes_buffer);
+                            }
+                            Column::Id => {
+                                field_bytes.extend(
+                                    format!("{:?}{}", curr.object_type(), curr.id())
+                                        .as_str()
+                                        .bytes(),
+                                );
+                            }
+                            Column::RawId => field_bytes.extend(curr.id().to_string().as_str().bytes()),
+                            Column::NewVersion => {
+                                field_bytes.extend(curr.version().unwrap().to_string().bytes());
+                            }
+                            Column::OldVersion => {
+                                field_bytes.extend(last_version.as_str().bytes());
+                            }
+                            Column::IsoDatetime => {
+                                field_bytes
+                                    .extend(curr.timestamp().as_ref().unwrap().to_iso_string().bytes());
+                            }
+                            Column::EpochDatetime => {
+                                field_bytes.extend(
+                                    curr.timestamp()
+                                        .as_ref()
+                                        .unwrap()
+                                        .to_epoch_number()
+                                        .to_string()
+                                        .bytes(),
+                                );
+                            }
+                            Column::Username => {
+                                encode_field(
+                                    curr.user().unwrap(),
+                                    &mut field_bytes,
+                                    &mut utf8_bytes_buffer,
+                                );
+                            }
+                            Column::Uid => {
+                                field_bytes.extend(curr.uid().unwrap().to_string().bytes());
+                            }
+                            Column::ChangesetId => {
+                                field_bytes.extend(curr.changeset_id().unwrap().to_string().bytes());
+                            }
+                            Column::ObjectTypeShort => {
+                                field_bytes.extend(match curr.object_type() {
+                                    OSMObjectType::Node => b"n",
+                                    OSMObjectType::Way => b"w",
+                                    OSMObjectType::Relation => b"r",
+                                });
+                            }
+                            Column::ObjectTypeLong => {
+                                field_bytes.extend(match curr.object_type() {
+                                    OSMObjectType::Node => b"node".iter(),
+                                    OSMObjectType::Way => b"way".iter(),
+                                    OSMObjectType::Relation => b"relation".iter(),
+                                });
+                            }
+                            Column::ChangesetTag(changeset_tag) => {
+                                match changeset_lookup
                                     .as_ref()
                                     .unwrap()
-                                    .to_epoch_number()
-                                    .to_string()
-                                    .bytes(),
-                            );
-                        }
-                        Column::Username => {
-                            encode_field(
-                                curr.user().unwrap(),
-                                &mut field_bytes,
-                                &mut utf8_bytes_buffer,
-                            );
-                        }
-                        Column::Uid => {
-                            field_bytes.extend(curr.uid().unwrap().to_string().bytes());
-                        }
-                        Column::ChangesetId => {
-                            field_bytes.extend(curr.changeset_id().unwrap().to_string().bytes());
-                        }
-                        Column::ObjectTypeShort => {
-                            field_bytes.extend(match curr.object_type() {
-                                OSMObjectType::Node => b"n",
-                                OSMObjectType::Way => b"w",
-                                OSMObjectType::Relation => b"r",
-                            });
-                        }
-                        Column::ObjectTypeLong => {
-                            field_bytes.extend(match curr.object_type() {
-                                OSMObjectType::Node => b"node".iter(),
-                                OSMObjectType::Way => b"way".iter(),
-                                OSMObjectType::Relation => b"relation".iter(),
-                            });
-                        }
-                        Column::ChangesetTag(changeset_tag) => {
-                            match changeset_lookup
-                                .as_ref()
-                                .unwrap()
-                                .tags(curr.changeset_id().unwrap())?
-                            {
-                                None => {
-                                    trace!("No tags found for changeset {:?}", curr.changeset_id());
-                                }
-                                Some(tags_for_changeset) => {
-                                    if let Some(v) =
-                                        tags_for_changeset
-                                            .iter()
-                                            .filter_map(|(k, v)| {
-                                                if k == changeset_tag {
-                                                    Some(v)
-                                                } else {
-                                                    None
-                                                }
-                                            })
-                                            .next()
-                                    {
-                                        field_bytes.extend(v.bytes());
+                                    .tags(curr.changeset_id().unwrap())?
+                                {
+                                    None => {
+                                        trace!("No tags found for changeset {:?}", curr.changeset_id());
+                                    }
+                                    Some(tags_for_changeset) => {
+                                        if let Some(v) =
+                                            tags_for_changeset
+                                                .iter()
+                                                .filter_map(|(k, v)| {
+                                                    if k == changeset_tag {
+                                                        Some(v)
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                                .next()
+                                        {
+                                            field_bytes.extend(v.bytes());
+                                        }
                                     }
                                 }
                             }
-                        }
-                        Column::TagCountDelta => {
-                            field_bytes.extend(match (last_value_existed, curr_value_exists) {
-                                (false, false) => unreachable!(),
-                                (false, true) => b"+1".iter(),
-                                (true, false) => b"-1".iter(),
-                                (true, true) => b"0".iter(),
-                            });
-                        }
-                    }
-                    output.write_field(&field_bytes)?;
-                }
+                            Column::TagCountDelta => {
+                                field_bytes.extend(match (last_value_existed, curr_value_exists) {
+                                    (false, false) => unreachable!(),
+                                    (false, true) => b"+1".iter(),
+                                    (true, false) => b"-1".iter(),
+                                    (true, true) => b"0".iter(),
+                                });
+                            }
 
-                output.write_record(None::<&[u8]>)?;
+                            Column::ValueCountDelta => {
+                                field_bytes.extend(
+                                    match i { 0 => b"-1".iter(), 1 => b"+1".iter(), _ => unreachable!() }
+                                );
+                            }
+                        }
+                        output.write_field(&field_bytes)?;
+                    }
+
+                    output.write_record(None::<&[u8]>)?;
+
+                    i += 1;
+                }
             }
         }
 
