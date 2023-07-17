@@ -92,7 +92,7 @@ probably better)
 
 This programme can run on non-history files just fine. The `old_value`, and
 `old_version` will be empty. This can be a way to convert OSM data into CSV
-format for further processing.
+format for further processing. This tool will not make any OSM API requests.
 
 ### Using on privacy preserving files.
 
