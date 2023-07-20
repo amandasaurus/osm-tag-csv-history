@@ -168,6 +168,7 @@ fn main() -> Result<()> {
              .possible_values(&["none", "auto", "gzip"])
              .hidden_short_help(true)
              .default_value("auto")
+             .value_name("{none,auto,gzip}")
              .help("Should the output file be compressed?")
              .long_help("Should the CSV output be compress?\nnone = don't compress the output\ngzip = always compress output with gzip\nauto (default) = uncompressed unless the output filename ends in .gz")
              )
@@ -219,7 +220,7 @@ fn main() -> Result<()> {
              .short('C').long("columns")
              .value_name("COL,COL,...")
              .takes_value(true).required(false)
-             .default_value("key,new_value,old_value,id,new_version,old_version,datetime,username,uid,changeset_id")
+             .default_value("key,new_value,old_value,id,new_version,old_version,iso_datetime,username,uid,changeset_id")
              .long_help("Output the following columns, in order:
     key: Tag key
     new_value: Old value of the tag
@@ -230,10 +231,10 @@ fn main() -> Result<()> {
     object_type_long, osm_type_long: node, way, relation for the object
     new_version: Old version number
     old_version: New version number:
-    datetime, iso_datetime, iso_timestamp: ISO Timestamp of the new object
-    epoch, epoch_datetime, epoch_timestamp: Epoch timestamp of the new object
+    iso_datetime, datetime, iso_timestamp: ISO Timestamp of the new object
+    epoch, epoch_datetime, epoch_timestamp: Unix Epoch timestamp (seconds since 1 Jan 1970) of the new object
     username: Username of the new object
-    uid: UID of new object:
+    uid: UID of new object.
     changeset_id: Changeset ID of the new object
     changeset.TAG: TAG of the changeset 
     tag_count_delta: What is the totaly change to the number
@@ -242,7 +243,7 @@ fn main() -> Result<()> {
 
         .arg(Arg::with_name("object-types")
              .short('T').long("object-types")
-             .value_name("nwr")
+             .value_name("[nwr]")
              .help("Only include these OSM Object types")
              .long_help("Only include these OSM Object types. Specify a letter for each type (n)ode/(w)way/(r)elation, e.g. -T wr = only ways & relations")
              .takes_value(true).required(false)
