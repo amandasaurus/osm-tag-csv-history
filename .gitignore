@@ -4,5 +4,7 @@
 /*.[tc]sv.gz
 /*.[tc]sv.zst
 .*.swp
+/*.opl
+/*.osm
 /*.osm.pbf
 /*.osm.xml
