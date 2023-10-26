@@ -557,9 +557,13 @@ fn main() -> Result<()> {
 
                 loop {
                     match (&line_type, i) {
-                        (LineType::OldNewValue, 0) => {},
-                        (LineType::OldNewValue, 1) => { break; },
-                        (LineType::OldNewValue, _) => { unreachable!() },
+                        (LineType::OldNewValue, 0) => {}
+                        (LineType::OldNewValue, 1) => {
+                            break;
+                        }
+                        (LineType::OldNewValue, _) => {
+                            unreachable!()
+                        }
                         (LineType::SeparateLines, 0) => {
                             if !last_value_existed {
                                 i += 1;
@@ -572,8 +576,12 @@ fn main() -> Result<()> {
                                 continue;
                             }
                         }
-                        (LineType::SeparateLines, 2) => { break; },
-                        (LineType::SeparateLines, _) => { unreachable!() },
+                        (LineType::SeparateLines, 2) => {
+                            break;
+                        }
+                        (LineType::SeparateLines, _) => {
+                            unreachable!()
+                        }
                     }
 
                     for column in columns.iter() {
@@ -593,8 +601,11 @@ fn main() -> Result<()> {
                                     match i {
                                         0 => last_value,
                                         1 => curr_value,
-                                        _ => unreachable!()
-                                    }, &mut field_bytes, &mut utf8_bytes_buffer);
+                                        _ => unreachable!(),
+                                    },
+                                    &mut field_bytes,
+                                    &mut utf8_bytes_buffer,
+                                );
                             }
                             Column::Id => {
                                 field_bytes.extend(
@@ -603,7 +614,9 @@ fn main() -> Result<()> {
                                         .bytes(),
                                 );
                             }
-                            Column::RawId => field_bytes.extend(curr.id().to_string().as_str().bytes()),
+                            Column::RawId => {
+                                field_bytes.extend(curr.id().to_string().as_str().bytes())
+                            }
                             Column::NewVersion => {
                                 field_bytes.extend(curr.version().unwrap().to_string().bytes());
                             }
@@ -611,8 +624,9 @@ fn main() -> Result<()> {
                                 field_bytes.extend(last_version.as_str().bytes());
                             }
                             Column::IsoDatetime => {
-                                field_bytes
-                                    .extend(curr.timestamp().as_ref().unwrap().to_iso_string().bytes());
+                                field_bytes.extend(
+                                    curr.timestamp().as_ref().unwrap().to_iso_string().bytes(),
+                                );
                             }
                             Column::EpochDatetime => {
                                 field_bytes.extend(
@@ -635,7 +649,8 @@ fn main() -> Result<()> {
                                 field_bytes.extend(curr.uid().unwrap().to_string().bytes());
                             }
                             Column::ChangesetId => {
-                                field_bytes.extend(curr.changeset_id().unwrap().to_string().bytes());
+                                field_bytes
+                                    .extend(curr.changeset_id().unwrap().to_string().bytes());
                             }
                             Column::ObjectTypeShort => {
                                 field_bytes.extend(match curr.object_type() {
@@ -658,20 +673,22 @@ fn main() -> Result<()> {
                                     .tags(curr.changeset_id().unwrap())?
                                 {
                                     None => {
-                                        trace!("No tags found for changeset {:?}", curr.changeset_id());
+                                        trace!(
+                                            "No tags found for changeset {:?}",
+                                            curr.changeset_id()
+                                        );
                                     }
                                     Some(tags_for_changeset) => {
-                                        if let Some(v) =
-                                            tags_for_changeset
-                                                .iter()
-                                                .filter_map(|(k, v)| {
-                                                    if k == changeset_tag {
-                                                        Some(v)
-                                                    } else {
-                                                        None
-                                                    }
-                                                })
-                                                .next()
+                                        if let Some(v) = tags_for_changeset
+                                            .iter()
+                                            .filter_map(|(k, v)| {
+                                                if k == changeset_tag {
+                                                    Some(v)
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                            .next()
                                         {
                                             field_bytes.extend(v.bytes());
                                         }
@@ -688,9 +705,11 @@ fn main() -> Result<()> {
                             }
 
                             Column::ValueCountDelta => {
-                                field_bytes.extend(
-                                    match i { 0 => b"-1".iter(), 1 => b"+1".iter(), _ => unreachable!() }
-                                );
+                                field_bytes.extend(match i {
+                                    0 => b"-1".iter(),
+                                    1 => b"+1".iter(),
+                                    _ => unreachable!(),
+                                });
                             }
                         }
                         output.write_field(&field_bytes)?;
