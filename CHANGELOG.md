@@ -1,3 +1,10 @@
+# Unreleased
+
+* `-t/`--tag` option changed to accept a KEY=VALUE argument and matches on the
+  key & value of the OSM tag.
+ `-k`/`--key` works the way `--tag` used to work.
+* `tag_count_delta` is now included by default
+
 # v0.6.0 - 26 October 2023
 
 * Minor --help output improvements

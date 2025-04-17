@@ -182,12 +182,19 @@ fn main() -> Result<()> {
              .help("with -v, how often (in sec.) to print progress messages")
              )
 
-        .arg(Arg::with_name("tag")
-             .short('t').long("tag")
-             .value_name("TAG")
+        .arg(Arg::with_name("key")
+             .short('k').long("k")
+             .value_name("KEY")
              .takes_value(true).required(false)
              .multiple(true).number_of_values(1)
-             .help("Only include changes to this tag (can be specified multiple times)")
+             .help("Only include changes to this tag key (can be specified multiple times)")
+             )
+        .arg(Arg::with_name("tag")
+             .short('t').long("tag")
+             .value_name("KEY=VALUE")
+             .takes_value(true).required(false)
+             .multiple(true).number_of_values(1)
+             .help("Only include changes with this KEY & VALUE (can be specified multiple times)")
              )
 
 
@@ -220,7 +227,7 @@ fn main() -> Result<()> {
              .short('C').long("columns")
              .value_name("COL,COL,...")
              .takes_value(true).required(false)
-             .default_value("key,new_value,old_value,id,new_version,old_version,iso_datetime,username,uid,changeset_id")
+             .default_value("key,new_value,old_value,id,new_version,old_version,tag_count_delta,iso_datetime,username,uid,changeset_id")
              .long_help("Output the following columns, in order:
     key: Tag key
     new_value: Old value of the tag
@@ -280,9 +287,17 @@ fn main() -> Result<()> {
         osmio::pbf::PBFReader::new(BufReader::new(ReaderWithSize::from_file(file)?));
     let mut objects_iter = osm_obj_reader.objects();
 
-    let only_include_tags: Option<Vec<String>> = matches
-        .values_of("tag")
-        .map(|ts| ts.map(|s| s.to_string()).collect());
+    let only_include_keys: Vec<String> = matches
+        .get_many::<String>("key").into_iter().flatten().map(String::from).collect();
+
+    let only_include_tags: Vec<(String, String)> = matches
+        .get_many("tag")
+        .into_iter()
+        .flatten()
+        .map(|kv: &String| {
+            let mut parts = kv.splitn(2, "=").map(String::from);
+            (parts.next().unwrap(), parts.next().unwrap())
+        }).collect();
 
     let only_include_uids: Option<Vec<u32>> = match matches.values_of("uid") {
         None => None,
@@ -315,11 +330,18 @@ fn main() -> Result<()> {
         LineType::OldNewValue
     };
 
-    if let Some(only_include_tags) = only_include_tags.as_ref() {
+    if !only_include_tags.is_empty() {
         info!(
             "Only including changes to these {} tag(s): {:?}",
             only_include_tags.len(),
             only_include_tags
+        );
+    }
+    if !only_include_keys.is_empty() {
+        info!(
+            "Only including changes to these {} keys(s): {:?}",
+            only_include_keys.len(),
+            only_include_keys
         );
     }
 
@@ -517,11 +539,7 @@ fn main() -> Result<()> {
 
             for key in keys.into_iter() {
                 // Should we skip this tag?
-                if only_include_tags
-                    .as_ref()
-                    .map_or(false, |only_include_tags| {
-                        !only_include_tags.iter().any(|t| t == key)
-                    })
+                if !only_include_keys.is_empty() && !only_include_keys.iter().any(|k| key == k)
                 {
                     continue;
                 }
@@ -541,6 +559,13 @@ fn main() -> Result<()> {
                     curr_value_exists = false;
                 };
                 if last_value == curr_value {
+                    continue;
+                }
+                //dbg!(key); dbg!(last_value); dbg!(curr_value);
+                //dbg!(&only_include_tags);
+                if !only_include_tags.is_empty()
+                    && !only_include_tags.iter().any(|(k, v)| k == key && (v == last_value || v == curr_value))
+                {
                     continue;
                 }
 

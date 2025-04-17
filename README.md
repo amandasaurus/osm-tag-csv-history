@@ -42,11 +42,11 @@ The output is automatically compressed with gzip if the file ends in `.gz`. `.cs
 
 ### Tag Filtering
 
-By default, all tag changes are included. With the `--tag`/`-t` argument, only any changes to those tags are included in the output
+By default, all tag changes are included. With the `--key`/`-k` argument, only any changes to those tag keys are included in the output
 
 To produce a CSV with only changes to the `highway` or `building` tag, run this command
 
-    osm-tag-csv-history -i mydata.osm.pbf -o mydata.csv -t highway -t building
+    osm-tag-csv-history -i mydata.osm.pbf -o mydata.csv -k highway -k building
 
 ### Object Type Filtering
 
@@ -130,6 +130,10 @@ Default values, in order
   the id. `n123` is node with id 123. This format is used [by `osmium-tool` to filter an OSM file by object id](https://osmcode.org/osmium-tool/manual.html#getting-osm-objects-by-id)
 * `new_version` The current/new version number
 * `old_version` The previous version number. `""` (empty string) for the first version of an object
+* `tag_count_delta`: `0` if the tag is changed, `+1` if the tag is added, `-1`
+  if the tag was removed. This is a more robust way to determine if a tag was
+  added or removed. Think of it as “the change in the number of OSM objects
+  with this key”
 * `datetime` Date time (RFC3339 format in UTC) the object was created.
 * `username` The username of the user who changes it (remember: in OSM, users
   can change their username, UIDs remain constant)
@@ -145,14 +149,10 @@ Default values, in order
   `datetime`) makes processing about 15% faster (because the conversion of
   epoch seconds in integer to ISO datetime format string doesn't need to be
   done)
-* `tag_count_delta`: `0` if the tag is changed, `+1` if the tag is added, `-1`
-  if the tag was removed. This is a more robust way to determine if a tag was
-  added or removed. Think of it as “the change in the number of OSM objects
-  with this key”
 
 ### Example
 
-Imagine this simple file:
+Imagine this simple file ([`example.osh.pbf`](./example.osh.pbf)).
 
 ```xml
 <?xml version='1.0' encoding='UTF-8'?>
@@ -193,21 +193,22 @@ Imagine this simple file:
 </osm>
 ```
 
-NB: This programme cannot read XML files, only PBF. This file was converted to PBF with `osmium cat example.osm.xml -o example.osm.pbf`.
+NB: This programme cannot read XML files, only PBF. This file was converted to PBF with `osmium cat example.osm.xml -o example.osh.pbf`.
 
-Running `osm-tag-csv-history` on it produces this CSV file (formatted here as a table by with [`csvtomd`](https://github.com/mplewis/csvtomd)):
+Running `osm-tag-csv-history` on it produces this CSV file (formatted here as a table by with [`csvtomd`](https://csvtomd.com/)).
 
-key         |  new_value   |  old_value  |  id  |  new_version  |  old_version  |  datetime              |  username  |  uid  |  changeset_id
-------------|--------------|-------------|------|---------------|---------------|------------------------|------------|-------|--------------
-name        |  Nice City   |             |  n1  |  1            |               |  2019-01-01T00:00:00Z  |  Alice     |  12   |  2
-place       |  city        |             |  n1  |  1            |               |  2019-01-01T00:00:00Z  |  Alice     |  12   |  2
-population  |  1000000     |             |  n1  |  2            |  1            |  2019-03-01T12:30:00Z  |  Bob       |  2    |  10
-amenity     |  restaurant  |             |  n2  |  1            |               |  2019-04-01T00:00:00Z  |  Alice     |  12   |  20
-name        |  TastyEats   |             |  n2  |  1            |               |  2019-04-01T00:00:00Z  |  Alice     |  12   |  20
-cuisine     |  regional    |             |  n2  |  2            |  1            |  2019-04-01T02:00:00Z  |  Alice     |  12   |  21
-cuisine     |  burger      |  regional   |  n2  |  3            |  2            |  2019-04-01T03:00:00Z  |  Alice     |  12   |  22
-amenity     |  bench       |             |  n3  |  1            |               |  2019-04-01T00:00:00Z  |  Alice     |  12   |  50
-amenity     |              |  bench      |  n3  |  2            |  1            |  2019-06-01T00:00:00Z  |  Alice     |  12   |  100
+| key        | new_value  | old_value | id | new_version | old_version | tag_count_delta | iso_datetime         | username | uid | changeset_id |
+| ---------- | ---------- | --------- | -- | ----------- | ----------- | --------------- | -------------------- | -------- | --- | ------------ |
+| name       | Nice City  |           | n1 | 1           |             | +1              | 2019-01-01T00:00:00Z | Alice    | 12  | 2            |
+| place      | city       |           | n1 | 1           |             | +1              | 2019-01-01T00:00:00Z | Alice    | 12  | 2            |
+| population | 1000000    |           | n1 | 2           | 1           | +1              | 2019-03-01T12:30:00Z | Bob      | 2   | 10           |
+| amenity    | restaurant |           | n2 | 1           |             | +1              | 2019-04-01T00:00:00Z | Alice    | 12  | 20           |
+| name       | TastyEats  |           | n2 | 1           |             | +1              | 2019-04-01T00:00:00Z | Alice    | 12  | 20           |
+| cuisine    | regional   |           | n2 | 2           | 1           | +1              | 2019-04-01T02:00:00Z | Alice    | 12  | 21           |
+| cuisine    | burger     | regional  | n2 | 3           | 2           | 0               | 2019-04-01T03:00:00Z | Alice    | 12  | 22           |
+| amenity    | bench      |           | n3 | 1           |             | +1              | 2019-04-01T00:00:00Z | Alice    | 12  | 50           |
+| amenity    |            | bench     | n3 | 2           | 1           | -1              | 2019-06-01T00:00:00Z | Alice    | 12  | 100          |
+
 
 Some things to note:
 
@@ -226,7 +227,7 @@ The following other tools might be useful:
 
 ## Misc
 
-Copyright 2020, GNU Affero General Public Licence (AGPL) v3 or later. See [LICENCE.txt](./LICENCE.txt).
-Source code is on [Sourcehut](https://git.sr.ht/~ebel/osm-tag-csv-history), and [Github](https://github.com/amandasaurus/osm-tag-csv-history).
+Copyright 2020→2025, GNU Affero General Public Licence (AGPL) v3 or later. See [LICENCE.txt](./LICENCE.txt).
+Source code is on [Github](https://github.com/amandasaurus/osm-tag-csv-history).
 
 The output file should be viewed as a Derived Database of the OpenStreetMap database, and hence under the [ODbL 1.0](https://opendatacommons.org/licenses/odbl/) licence, the same as the [OpenStreetMap copyright](https://www.openstreetmap.org/copyright)
