@@ -4,7 +4,7 @@ version = "0.6.0"
 authors = ["Amanda McCann <amanda@technomancy.org>"]
 edition = "2018"
 license = "AGPL-3.0+"
-repository = "https://git.sr.ht/~ebel/osm-tag-csv-history"
+repository = "https://github.com/amandasaurus/osm-tag-csv-history"
 description = "Use CSV tools to see who's mapping what in OpenStreetMap."
 keywords = ["openstreetmap", "osm"]
 
