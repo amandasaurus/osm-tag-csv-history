@@ -605,6 +605,8 @@ dependencies = [
  "read-progress",
  "rusqlite",
  "serde_json",
+ "smallvec",
+ "smol_str",
 ]
 
 [[package]]

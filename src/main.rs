@@ -11,6 +11,8 @@ extern crate flate2;
 extern crate read_progress;
 extern crate rusqlite;
 extern crate serde_json;
+extern crate smol_str;
+extern crate smallvec;
 
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -28,6 +30,8 @@ use flate2::Compression;
 use flate2::write::GzEncoder;
 use read_progress::ReaderWithSize;
 use rusqlite::{Connection, OptionalExtension};
+use smol_str::SmolStr;
+use smallvec::SmallVec;
 
 #[allow(clippy::upper_case_acronyms)]
 enum OutputFormat {
@@ -287,26 +291,26 @@ fn main() -> Result<()> {
         osmio::pbf::PBFReader::new(BufReader::new(ReaderWithSize::from_file(file)?));
     let mut objects_iter = osm_obj_reader.objects();
 
-    let only_include_keys: Vec<String> = matches
-        .get_many::<String>("key")
+    let only_include_keys: SmallVec<[SmolStr; 2]> = matches
+        .get_many::<SmolStr>("key")
         .into_iter()
         .flatten()
-        .map(String::from)
+        .cloned()
         .collect();
 
-    let only_include_tags: Vec<(String, String)> = matches
+    let only_include_tags: SmallVec<[(SmolStr, SmolStr); 2]> = matches
         .get_many("tag")
         .into_iter()
         .flatten()
         .map(|kv: &String| {
-            let mut parts = kv.splitn(2, "=").map(String::from);
+            let mut parts = kv.splitn(2, "=").map(SmolStr::from);
             (parts.next().unwrap(), parts.next().unwrap())
         })
         .collect();
 
-    let only_include_uids: Option<Vec<u32>> = match matches.values_of("uid") {
+    let only_include_uids: Option<SmallVec<[u32; 1]>> = match matches.values_of("uid") {
         None => None,
-        Some(vals) => Some(vals.map(|u| Ok(u.parse()?)).collect::<Result<Vec<u32>>>()?),
+        Some(vals) => Some(vals.map(|u| Ok(u.parse()?)).collect::<Result<_>>()?),
     };
 
     let only_include_types = match matches.value_of("object-types") {
@@ -321,12 +325,12 @@ fn main() -> Result<()> {
         }
     };
 
-    let columns: Vec<Column> = matches
+    let columns: SmallVec<[Column; 12]> = matches
         .value_of("columns")
         .unwrap()
         .split(',')
         .map(|col_str| col_str.parse())
-        .collect::<Result<Vec<Column>>>()?;
+        .collect::<Result<_>>()?;
     debug!("columns: {:?}", columns);
 
     let line_type = if columns.iter().any(|c| *c == Column::ValueCountDelta) {
