@@ -1,3 +1,5 @@
+# Unreleased
+
 # v0.7.0 - 2025-05-06
 
 * `-t/`--tag` option changed to accept a KEY=VALUE argument and matches on the
