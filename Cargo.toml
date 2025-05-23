@@ -2,7 +2,7 @@
 name = "osm-tag-csv-history"
 version = "0.8.0-dev"
 authors = ["Amanda McCann <amanda@technomancy.org>"]
-edition = "2018"
+edition = "2024"
 license = "AGPL-3.0+"
 repository = "https://github.com/amandasaurus/osm-tag-csv-history"
 description = "Use CSV tools to see who's mapping what in OpenStreetMap."
