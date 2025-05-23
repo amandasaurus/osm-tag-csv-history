@@ -24,8 +24,8 @@ use clap::{App, Arg};
 use osmio::{OSMObj, OSMObjBase, OSMObjectType, OSMReader};
 
 use anyhow::{Context, Result};
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 use read_progress::ReaderWithSize;
 use rusqlite::{Connection, OptionalExtension};
 
@@ -288,7 +288,11 @@ fn main() -> Result<()> {
     let mut objects_iter = osm_obj_reader.objects();
 
     let only_include_keys: Vec<String> = matches
-        .get_many::<String>("key").into_iter().flatten().map(String::from).collect();
+        .get_many::<String>("key")
+        .into_iter()
+        .flatten()
+        .map(String::from)
+        .collect();
 
     let only_include_tags: Vec<(String, String)> = matches
         .get_many("tag")
@@ -297,7 +301,8 @@ fn main() -> Result<()> {
         .map(|kv: &String| {
             let mut parts = kv.splitn(2, "=").map(String::from);
             (parts.next().unwrap(), parts.next().unwrap())
-        }).collect();
+        })
+        .collect();
 
     let only_include_uids: Option<Vec<u32>> = match matches.values_of("uid") {
         None => None,
@@ -539,8 +544,7 @@ fn main() -> Result<()> {
 
             for key in keys.into_iter() {
                 // Should we skip this tag?
-                if !only_include_keys.is_empty() && !only_include_keys.iter().any(|k| key == k)
-                {
+                if !only_include_keys.is_empty() && !only_include_keys.iter().any(|k| key == k) {
                     continue;
                 }
                 if let Some(&value) = last_tags.as_ref().and_then(|lt| lt.get(key)) {
@@ -564,18 +568,16 @@ fn main() -> Result<()> {
                 //dbg!(key); dbg!(last_value); dbg!(curr_value);
                 //dbg!(&only_include_tags);
                 if !only_include_tags.is_empty()
-                    && !only_include_tags.iter().any(|(k, v)| k == key && (v == last_value || v == curr_value))
+                    && !only_include_tags
+                        .iter()
+                        .any(|(k, v)| k == key && (v == last_value || v == curr_value))
                 {
                     continue;
                 }
 
                 trace!(
                     "Write tag change {} {:?} → {:?} ({}→{})",
-                    key,
-                    last_value,
-                    curr_value,
-                    last_value_existed,
-                    curr_value_exists,
+                    key, last_value, curr_value, last_value_existed, curr_value_exists,
                 );
 
                 let mut i: u8 = 0;
@@ -707,11 +709,7 @@ fn main() -> Result<()> {
                                         if let Some(v) = tags_for_changeset
                                             .iter()
                                             .filter_map(|(k, v)| {
-                                                if k == changeset_tag {
-                                                    Some(v)
-                                                } else {
-                                                    None
-                                                }
+                                                if k == changeset_tag { Some(v) } else { None }
                                             })
                                             .next()
                                         {
