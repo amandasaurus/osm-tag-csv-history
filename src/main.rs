@@ -277,7 +277,7 @@ fn main() -> Result<()> {
         .init();
 
     let input_path = matches.value_of("input").unwrap();
-    info!("Beginning processing of {}", input_path);
+    info!("Begining processing of {}", input_path);
 
     let log_frequency: f32 = matches.value_of("log-frequency").unwrap().parse()?;
 
