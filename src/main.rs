@@ -11,8 +11,8 @@ extern crate flate2;
 extern crate read_progress;
 extern crate rusqlite;
 extern crate serde_json;
-extern crate smol_str;
 extern crate smallvec;
+extern crate smol_str;
 
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -30,8 +30,8 @@ use flate2::Compression;
 use flate2::write::GzEncoder;
 use read_progress::ReaderWithSize;
 use rusqlite::{Connection, OptionalExtension};
-use smol_str::SmolStr;
 use smallvec::SmallVec;
+use smol_str::SmolStr;
 
 #[allow(clippy::upper_case_acronyms)]
 enum OutputFormat {
@@ -260,14 +260,14 @@ fn main() -> Result<()> {
              .takes_value(true).required(false)
              .default_value("nwr")
              )
-        
+
         .arg(Arg::with_name("line-type")
              .long("line-type")
              .takes_value(true)
              .value_parser(["oldnew", "separate"])
              .default_value("oldnew")
              )
-        
+
 
         .get_matches();
 
