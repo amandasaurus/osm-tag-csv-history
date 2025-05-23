@@ -1,6 +1,6 @@
 [package]
 name = "osm-tag-csv-history"
-version = "0.8.0-dev"
+version = "0.8.0-rc1"
 authors = ["Amanda McCann <amanda@technomancy.org>"]
 edition = "2024"
 license = "AGPL-3.0+"

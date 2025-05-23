@@ -592,7 +592,7 @@ checksum = "e2355d85b9a3786f481747ced0e0ff2ba35213a1f9bd406ed906554d7af805a1"
 
 [[package]]
 name = "osm-tag-csv-history"
-version = "0.8.0-dev"
+version = "0.8.0-rc1"
 dependencies = [
  "anyhow",
  "clap",

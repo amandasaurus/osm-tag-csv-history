@@ -1,4 +1,7 @@
-# Unreleased
+# v0.8.0
+
+* Update dependencies
+* Attempted performance improvements with SmolStr & SmallVec.
 
 # v0.7.0 - 2025-05-06
 
