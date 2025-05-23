@@ -165,7 +165,7 @@ fn main() -> Result<()> {
         .arg(Arg::with_name("compression")
              .short('c').long("compression")
              .takes_value(true).required(false)
-             .possible_values(&["none", "auto", "gzip"])
+             .possible_values(["none", "auto", "gzip"])
              .hidden_short_help(true)
              .default_value("auto")
              .value_name("{none,auto,gzip}")
@@ -218,7 +218,7 @@ fn main() -> Result<()> {
              .long("output-format")
              .takes_value(true).required(false)
              .help("output format")
-             .possible_values(&["auto", "csv", "tsv"])
+             .possible_values(["auto", "csv", "tsv"])
              .hidden_short_help(true)
              .default_value("auto")
              )
@@ -761,7 +761,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn encode_field(field: &str, bytes: &mut Vec<u8>, utf8_bytes_buffer: &mut Vec<u8>) {
+fn encode_field(field: &str, bytes: &mut Vec<u8>, utf8_bytes_buffer: &mut [u8]) {
     bytes.clear();
 
     for c in field.chars() {
