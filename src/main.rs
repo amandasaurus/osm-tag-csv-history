@@ -22,7 +22,7 @@ use std::io::BufReader;
 use std::str::FromStr;
 use std::time::Instant;
 
-use clap::{Command, Arg, value_parser, ArgAction};
+use clap::{Arg, ArgAction, Command, value_parser};
 use osmio::{OSMObj, OSMObjBase, OSMObjectType, OSMReader};
 
 use anyhow::{Context, Result};
@@ -311,24 +311,24 @@ fn main() -> Result<()> {
         })
         .collect();
 
-    let only_include_uids: Option<SmallVec<[u32; 1]>> = matches.get_many("uid").map(|vals|
-        vals.copied().collect()
-    );
+    let only_include_uids: Option<SmallVec<[u32; 1]>> =
+        matches.get_many("uid").map(|vals| vals.copied().collect());
 
-    let only_include_types = matches.get_one::<String>("object-types").map_or(
-        (true, true, true),
-        |object_types| {
-            let object_types = object_types.to_lowercase();
-            (
-                object_types.contains('n'),
-                object_types.contains('w'),
-                object_types.contains('r'),
-            )
-        }
-    );
+    let only_include_types =
+        matches
+            .get_one::<String>("object-types")
+            .map_or((true, true, true), |object_types| {
+                let object_types = object_types.to_lowercase();
+                (
+                    object_types.contains('n'),
+                    object_types.contains('w'),
+                    object_types.contains('r'),
+                )
+            });
 
     let columns: SmallVec<[Column; 12]> = matches
-        .get_one::<String>("columns").map(String::as_str)
+        .get_one::<String>("columns")
+        .map(String::as_str)
         .unwrap()
         .split(',')
         .map(|col_str| col_str.parse())
@@ -366,8 +366,9 @@ fn main() -> Result<()> {
     // MUST be replaced with above columns
     // changesets?
     let changeset_lookup = if columns.iter().any(Column::is_changeset_tag) {
-        let lookup =
-            ChangesetTagLookup::from_filename(matches.get_one::<String>("changeset_filename").unwrap())?;
+        let lookup = ChangesetTagLookup::from_filename(
+            matches.get_one::<String>("changeset_filename").unwrap(),
+        )?;
         debug!(
             "Reading changeset sqlite from {}",
             matches.get_one::<String>("changeset_filename").unwrap()
@@ -377,10 +378,7 @@ fn main() -> Result<()> {
         None
     };
 
-    let include_header = match (
-        matches.get_flag("header"),
-        matches.get_flag("no-header"),
-    ) {
+    let include_header = match (matches.get_flag("header"), matches.get_flag("no-header")) {
         (false, false) => true,
         (true, false) => true,
         (false, true) => false,
