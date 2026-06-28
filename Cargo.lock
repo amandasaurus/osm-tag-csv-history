@@ -791,9 +791,9 @@ dependencies = [
 
 [[package]]
 name = "read-progress"
-version = "0.2.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63a0efaaa8dbadf44b31410bab6b4ccee7b42d317fceac58a4a110f10d2b2511"
+checksum = "5fdafe21764a087ac5ecc957daa9d16f741cd37d3996cb45533b4956eefdf41d"
 
 [[package]]
 name = "regex"

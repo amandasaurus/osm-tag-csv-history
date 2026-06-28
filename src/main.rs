@@ -28,7 +28,7 @@ use osmio::{OSMObj, OSMObjBase, OSMObjectType, OSMReader};
 use anyhow::{Context, Result};
 use flate2::Compression;
 use flate2::write::GzEncoder;
-use read_progress::ReaderWithSize;
+use read_progress::{ReadWithSize, ReaderWithSize};
 use rusqlite::{Connection, OptionalExtension};
 use smallvec::SmallVec;
 use smol_str::SmolStr;
