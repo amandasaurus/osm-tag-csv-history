@@ -149,6 +149,11 @@ Default values, in order
   `datetime`) makes processing about 15% faster (because the conversion of
   epoch seconds in integer to ISO datetime format string doesn't need to be
   done)
+* `datetime.TZ.FMT` Date time the object was created, but in timezone `TZ` and
+  strftime formatted with format `FMT` ([format syntax](https://docs.rs/chrono/latest/chrono/format/strftime/index.html#specifiers)). TZ is an entry from the [tz database](https://en.wikipedia.org/wiki/Tz_database).
+  e.g. `datetime.Europe/Berlin.%m`: Convert the changetime to local time in German, and then print the [month number (`%m`)])(https://docs.rs/chrono/latest/chrono/format/strftime/index.html#specifiers:~:text=m,digits%2E).
+  use `datetime.UTC.*` for UTC time.
+
 
 ### Example
 

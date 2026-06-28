@@ -1,5 +1,6 @@
 # v0.8.0
 
+* New column: Datetime formatted at timezone (`datetime.TZ.FMT` column)
 * Update dependencies
 * Attempted performance improvements with SmolStr & SmallVec.
 

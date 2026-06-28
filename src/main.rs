@@ -32,6 +32,7 @@ use read_progress::{ReadWithSize, ReaderWithSize};
 use rusqlite::{Connection, OptionalExtension};
 use smallvec::SmallVec;
 use smol_str::SmolStr;
+use tzfile::Tz;
 
 #[allow(clippy::upper_case_acronyms)]
 enum OutputFormat {
@@ -53,6 +54,7 @@ enum Column {
     OldVersion,
     IsoDatetime,
     EpochDatetime,
+    DatetimeFmt(String, Tz, String),
     Username,
     Uid,
     ChangesetId,
@@ -66,6 +68,11 @@ enum Column {
 impl FromStr for Column {
     type Err = anyhow::Error;
     fn from_str(val: &str) -> Result<Self, Self::Err> {
+        // TZ is case sensitive
+        if let Some(tz_fmt) = val.trim().strip_prefix("datetime.") {
+            let res = parse_tz_fmt(tz_fmt)?;
+            return Ok(Column::DatetimeFmt(res.0, res.1, res.2));
+        }
         match val.to_lowercase().trim() {
             "key" => Ok(Column::Key),
             "new_value" => Ok(Column::NewValue),
@@ -93,6 +100,16 @@ impl FromStr for Column {
     }
 }
 
+fn parse_tz_fmt(val: &str) -> Result<(String, Tz, String)> {
+    let mut parts = val.splitn(2, ".");
+    let tz_name = parts.next().unwrap().to_string();
+    let fmt = parts.next().unwrap().to_string();
+    //dbg!(val, tz_name, &fmt);
+    let tz = Tz::named(&tz_name).with_context(|| format!("Unable to load timezone {}", tz_name))?;
+
+    Ok((tz_name, tz, fmt))
+}
+
 impl Column {
     fn is_changeset_tag(&self) -> bool {
         matches!(self, Column::ChangesetTag(_))
@@ -110,6 +127,9 @@ impl Column {
             Column::OldVersion => "old_version".into(),
             Column::IsoDatetime => "iso_datetime".into(),
             Column::EpochDatetime => "epoch_datetime".into(),
+            Column::DatetimeFmt(tz_name, _tz, fmt) => {
+                format!("datetime.{}.{}", tz_name, fmt).into()
+            }
             Column::Username => "username".into(),
             Column::Uid => "uid".into(),
             Column::ChangesetId => "changeset_id".into(),
@@ -247,6 +267,7 @@ fn main() -> Result<()> {
     old_version: New version number:
     iso_datetime, datetime, iso_timestamp: ISO Timestamp of the new object
     epoch, epoch_datetime, epoch_timestamp: Unix Epoch timestamp (seconds since 1 Jan 1970) of the new object
+    datetime.TZ.FMT: Datetime in timezone TZ strftime format FMT
     username: Username of the new object
     uid: UID of new object.
     changeset_id: Changeset ID of the new object
@@ -294,8 +315,8 @@ fn main() -> Result<()> {
         osmio::pbf::PBFReader::new(BufReader::new(ReaderWithSize::from_file(file)?));
     let mut objects_iter = osm_obj_reader.objects();
 
-    let only_include_keys: SmallVec<[SmolStr; 2]> = matches
-        .get_many::<SmolStr>("key")
+    let only_include_keys: SmallVec<[String; 2]> = matches
+        .get_many::<String>("key")
         .into_iter()
         .flatten()
         .cloned()
@@ -668,6 +689,16 @@ fn main() -> Result<()> {
                                         .to_string()
                                         .bytes(),
                                 );
+                            }
+                            Column::DatetimeFmt(_tz_name, tz, fmt) => {
+                                let datetime = chrono::DateTime::from_timestamp_secs(
+                                    curr.timestamp().as_ref().unwrap().to_epoch_number(),
+                                )
+                                .unwrap();
+                                let datetime = datetime.with_timezone(&tz);
+
+                                let res = datetime.format(fmt).to_string();
+                                field_bytes.extend(res.bytes());
                             }
                             Column::Username => {
                                 encode_field(
