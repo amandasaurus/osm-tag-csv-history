@@ -22,7 +22,7 @@ use std::io::BufReader;
 use std::str::FromStr;
 use std::time::Instant;
 
-use clap::{App, Arg};
+use clap::{Command, Arg, value_parser, ArgAction};
 use osmio::{OSMObj, OSMObjBase, OSMObjectType, OSMReader};
 
 use anyhow::{Context, Result};
@@ -98,7 +98,7 @@ impl Column {
         matches!(self, Column::ChangesetTag(_))
     }
 
-    fn header(&self) -> Cow<str> {
+    fn header(&self) -> Cow<'_, str> {
         match self {
             Column::Key => "key".into(),
             Column::NewValue => "new_value".into(),
@@ -128,11 +128,11 @@ enum LineType {
 }
 
 fn main() -> Result<()> {
-    let matches = App::new("osm-tag-csv-history")
+    let matches = Command::new("osm-tag-csv-history")
         .version(env!("CARGO_PKG_VERSION"))
         .about("Create a CSV file detailing tagging changes in an OSM file")
 
-        .arg(Arg::with_name("input")
+        .arg(Arg::new("input")
              .short('i').long("input")
              .value_name("INPUT.osh.pbf")
              .help("Input file to convert.")
@@ -140,33 +140,35 @@ fn main() -> Result<()> {
              .takes_value(true).required(true)
              )
 
-        .arg(Arg::with_name("output")
+        .arg(Arg::new("output")
              .short('o').long("output")
              .value_name("OUTPUT.csv[.gz]")
              .help("Where to write the output. Use - for stdout. with auto compression (default), if this file ends with .gz, then it will be gzip compressed")
              .takes_value(true).required(true)
              )
 
-        .arg(Arg::with_name("verbosity")
+        .arg(Arg::new("verbosity")
              .short('v').multiple_occurrences(true)
              .help("Increase verbosity")
              )
 
-        .arg(Arg::with_name("header")
+        .arg(Arg::new("header")
              .long("header")
              .takes_value(false).required(false)
              .help("Include a CSV header (default)")
              .conflicts_with("no-header")
+             .action(clap::ArgAction::SetTrue)
              )
 
-        .arg(Arg::with_name("no-header")
+        .arg(Arg::new("no-header")
              .long("no-header")
              .takes_value(false).required(false)
              .help("Do not include a CSV header")
              .conflicts_with("header")
+             .action(clap::ArgAction::SetTrue)
              )
 
-        .arg(Arg::with_name("compression")
+        .arg(Arg::new("compression")
              .short('c').long("compression")
              .takes_value(true).required(false)
              .possible_values(["none", "auto", "gzip"])
@@ -177,23 +179,24 @@ fn main() -> Result<()> {
              .long_help("Should the CSV output be compress?\nnone = don't compress the output\ngzip = always compress output with gzip\nauto (default) = uncompressed unless the output filename ends in .gz")
              )
 
-        .arg(Arg::with_name("log-frequency")
+        .arg(Arg::new("log-frequency")
              .long("log-frequency")
              .value_name("SEC")
-             .takes_value(true).required(false)
+             .value_parser(value_parser!(f32))
+             .required(false)
              .hidden_short_help(true)
              .default_value("10")
              .help("with -v, how often (in sec.) to print progress messages")
              )
 
-        .arg(Arg::with_name("key")
+        .arg(Arg::new("key")
              .short('k').long("k")
              .value_name("KEY")
              .takes_value(true).required(false)
              .multiple(true).number_of_values(1)
              .help("Only include changes to this tag key (can be specified multiple times)")
              )
-        .arg(Arg::with_name("tag")
+        .arg(Arg::new("tag")
              .short('t').long("tag")
              .value_name("KEY=VALUE")
              .takes_value(true).required(false)
@@ -202,23 +205,23 @@ fn main() -> Result<()> {
              )
 
 
-        .arg(Arg::with_name("changeset_filename")
+        .arg(Arg::new("changeset_filename")
              .long("changesets")
              .value_name("changesets-latest.osm.bz2")
              .takes_value(true).required(false)
              .help("Filename of the changeset file")
              )
 
-        .arg(Arg::with_name("uid")
+        .arg(Arg::new("uid")
              .long("uid")
              .value_name("USERID")
-             .takes_value(true).required(false)
-             .multiple(true).number_of_values(1)
+             .action(ArgAction::Append)
+             .value_parser(value_parser!(u32))
              .help("Only include changes made by this OSM user (by userid)")
              )
 
 
-        .arg(Arg::with_name("output_format")
+        .arg(Arg::new("output_format")
              .long("output-format")
              .takes_value(true).required(false)
              .help("output format")
@@ -227,7 +230,7 @@ fn main() -> Result<()> {
              .default_value("auto")
              )
 
-        .arg(Arg::with_name("columns")
+        .arg(Arg::new("columns")
              .short('C').long("columns")
              .value_name("COL,COL,...")
              .takes_value(true).required(false)
@@ -252,7 +255,7 @@ fn main() -> Result<()> {
                 ")
              )
 
-        .arg(Arg::with_name("object-types")
+        .arg(Arg::new("object-types")
              .short('T').long("object-types")
              .value_name("[nwr]")
              .help("Only include these OSM Object types")
@@ -261,7 +264,7 @@ fn main() -> Result<()> {
              .default_value("nwr")
              )
 
-        .arg(Arg::with_name("line-type")
+        .arg(Arg::new("line-type")
              .long("line-type")
              .takes_value(true)
              .value_parser(["oldnew", "separate"])
@@ -280,10 +283,10 @@ fn main() -> Result<()> {
         })
         .init();
 
-    let input_path = matches.value_of("input").unwrap();
+    let input_path = matches.get_one::<String>("input").unwrap();
     info!("Begining processing of {}", input_path);
 
-    let log_frequency: f32 = matches.value_of("log-frequency").unwrap().parse()?;
+    let log_frequency: f32 = *matches.get_one("log-frequency").unwrap();
 
     let file =
         File::open(input_path).with_context(|| format!("opening input file {}", input_path))?;
@@ -308,14 +311,13 @@ fn main() -> Result<()> {
         })
         .collect();
 
-    let only_include_uids: Option<SmallVec<[u32; 1]>> = match matches.values_of("uid") {
-        None => None,
-        Some(vals) => Some(vals.map(|u| Ok(u.parse()?)).collect::<Result<_>>()?),
-    };
+    let only_include_uids: Option<SmallVec<[u32; 1]>> = matches.get_many("uid").map(|vals|
+        vals.copied().collect()
+    );
 
-    let only_include_types = match matches.value_of("object-types") {
-        None => (true, true, true),
-        Some(object_types) => {
+    let only_include_types = matches.get_one::<String>("object-types").map_or(
+        (true, true, true),
+        |object_types| {
             let object_types = object_types.to_lowercase();
             (
                 object_types.contains('n'),
@@ -323,10 +325,10 @@ fn main() -> Result<()> {
                 object_types.contains('r'),
             )
         }
-    };
+    );
 
     let columns: SmallVec<[Column; 12]> = matches
-        .value_of("columns")
+        .get_one::<String>("columns").map(String::as_str)
         .unwrap()
         .split(',')
         .map(|col_str| col_str.parse())
@@ -365,10 +367,10 @@ fn main() -> Result<()> {
     // changesets?
     let changeset_lookup = if columns.iter().any(Column::is_changeset_tag) {
         let lookup =
-            ChangesetTagLookup::from_filename(matches.value_of("changeset_filename").unwrap())?;
+            ChangesetTagLookup::from_filename(matches.get_one::<String>("changeset_filename").unwrap())?;
         debug!(
             "Reading changeset sqlite from {}",
-            matches.value_of("changeset_filename").unwrap()
+            matches.get_one::<String>("changeset_filename").unwrap()
         );
         Some(lookup)
     } else {
@@ -376,8 +378,8 @@ fn main() -> Result<()> {
     };
 
     let include_header = match (
-        matches.is_present("header"),
-        matches.is_present("no-header"),
+        matches.get_flag("header"),
+        matches.get_flag("no-header"),
     ) {
         (false, false) => true,
         (true, false) => true,
@@ -386,8 +388,8 @@ fn main() -> Result<()> {
     };
 
     let output_format = match (
-        matches.value_of("output_format"),
-        matches.value_of("output"),
+        matches.get_one("output_format").map(String::as_str),
+        matches.get_one("output").map(String::as_str),
     ) {
         (Some("csv"), _) => OutputFormat::CSV,
         (Some("tsv"), _) => OutputFormat::TSV,
@@ -409,13 +411,13 @@ fn main() -> Result<()> {
         ),
     };
 
-    let output_path = matches.value_of("output").unwrap();
+    let output_path = matches.get_one::<String>("output").unwrap();
     let output_writer: Box<dyn std::io::Write> = if output_path == "-" {
         Box::new(std::io::stdout())
     } else {
-        Box::new(File::create(matches.value_of("output").unwrap())?)
+        Box::new(File::create(matches.get_one::<String>("output").unwrap())?)
     };
-    let output_writer = match matches.value_of("compression") {
+    let output_writer = match matches.get_one("compression").map(String::as_str) {
         Some("auto") => {
             if output_path == "-" || output_path.starts_with("/dev/fd/") {
                 // stdout, so no compression
