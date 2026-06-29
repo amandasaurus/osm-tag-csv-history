@@ -1,4 +1,4 @@
-# v0.8.0
+# v0.8.0 - 2026-06-29
 
 * New column: Datetime formatted at timezone (`datetime.TZ.FMT` column)
 * Update dependencies
