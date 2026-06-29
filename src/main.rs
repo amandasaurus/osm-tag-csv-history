@@ -40,6 +40,43 @@ enum OutputFormat {
     TSV,
 }
 
+/// Searching for keys
+#[derive(Debug, PartialEq, Clone)]
+enum KeyFilter {
+    FullKey(String),
+    StarPrefix(String),
+}
+
+/// Parses from user input
+impl FromStr for KeyFilter {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, ()> {
+        if let Some(key) = s.strip_prefix("rawkey:") {
+            Ok(KeyFilter::FullKey(key.to_string()))
+        } else if let Some(prefix) = s.strip_suffix("*") {
+            Ok(KeyFilter::StarPrefix(prefix.to_string()))
+        } else {
+            Ok(KeyFilter::FullKey(s.to_string()))
+        }
+    }
+}
+
+impl KeyFilter {
+    fn key_matches(&self, k: &str) -> bool {
+        if let KeyFilter::FullKey(k2) = self
+            && k2 == k
+        {
+            true
+        } else if let KeyFilter::StarPrefix(p) = self
+            && k.starts_with(p)
+        {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 enum Column {
     Key,
@@ -214,7 +251,8 @@ fn main() -> Result<()> {
              .value_name("KEY")
              .takes_value(true).required(false)
              .multiple(true).number_of_values(1)
-             .help("Only include changes to this tag key (can be specified multiple times)")
+             .help("Only include changes to this tag key (can be specified multiple times).")
+             .long_help("Use * for prefix match (e.g. `-k addr:*` matches any key that starts with the string `addr:`.\nTo search for literal `*`, use `rawkey:`, e.g. `-k rawkey:addr:*` will search for any key that's exactly `addr:*`.")
              )
         .arg(Arg::new("tag")
              .short('t').long("tag")
@@ -315,11 +353,11 @@ fn main() -> Result<()> {
         osmio::pbf::PBFReader::new(BufReader::new(ReaderWithSize::from_file(file)?));
     let mut objects_iter = osm_obj_reader.objects();
 
-    let only_include_keys: SmallVec<[String; 2]> = matches
+    let only_include_keys: SmallVec<[KeyFilter; 2]> = matches
         .get_many::<String>("key")
         .into_iter()
         .flatten()
-        .cloned()
+        .map(|s: &String| KeyFilter::from_str(s).unwrap())
         .collect();
 
     let only_include_tags: SmallVec<[(SmolStr, SmolStr); 2]> = matches
@@ -569,7 +607,9 @@ fn main() -> Result<()> {
 
             for key in keys.into_iter() {
                 // Should we skip this tag?
-                if !only_include_keys.is_empty() && !only_include_keys.iter().any(|k| key == k) {
+                if !only_include_keys.is_empty()
+                    && !only_include_keys.iter().any(|k| k.key_matches(key))
+                {
                     continue;
                 }
                 if let Some(&value) = last_tags.as_ref().and_then(|lt| lt.get(key)) {

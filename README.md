@@ -42,7 +42,7 @@ The output is automatically compressed with gzip if the file ends in `.gz`. `.cs
 
 ### Tag Filtering
 
-By default, all tag changes are included. With the `--key`/`-k` argument, only any changes to those tag keys are included in the output
+By default, all tag changes are included. With the `--key`/`-k` argument, only any changes to those tag keys are included in the output. It understands `*` to do prefix matching (e.g. `-k addr:*`).
 
 To produce a CSV with only changes to the `highway` or `building` tag, run this command
 

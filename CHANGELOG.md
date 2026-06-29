@@ -1,5 +1,7 @@
 # Unreleased
 
+* `-k`/`--key` supports prefix searching with `*`, e.g. `-k addr:*` works
+
 # v0.8.0 - 2026-06-29
 
 * New column: Datetime formatted at timezone (`datetime.TZ.FMT` column)
