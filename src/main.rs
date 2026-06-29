@@ -394,7 +394,7 @@ fn main() -> Result<()> {
         .collect::<Result<_>>()?;
     debug!("columns: {:?}", columns);
 
-    let line_type = if columns.iter().any(|c| *c == Column::ValueCountDelta) {
+    let line_type = if columns.contains(&Column::ValueCountDelta) {
         LineType::SeparateLines
     } else {
         LineType::OldNewValue
