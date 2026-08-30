@@ -1,6 +1,7 @@
 # Unreleased
 
 * `-k`/`--key` supports prefix searching with `*`, e.g. `-k addr:*` works
+* Added `--append-columns`
 
 # v0.8.0 - 2026-06-29
 

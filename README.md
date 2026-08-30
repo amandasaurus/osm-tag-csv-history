@@ -117,7 +117,7 @@ it will be escaped with a backslash (i.e. a newline is written as 2 characters,
 
 The columns can be changed with `--columns`/`-C`, e.g (` -C key,new_value,uid `).
 
-The default value is `key,new_value,old_value,id,new_version,old_version,datetime,username,uid,changeset_id`
+The default value is `key,new_value,old_value,id,new_version,old_version,datetime,username,uid,changeset_id`. To keep the default, but append extra columns use `--append-columns`, e.g. ` --append-columsn datetime.UTC.%m `
 
 Default values, in order
 

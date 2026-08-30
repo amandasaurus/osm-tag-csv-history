@@ -311,8 +311,17 @@ fn main() -> Result<()> {
     changeset_id: Changeset ID of the new object
     changeset.TAG: TAG of the changeset 
     tag_count_delta: What is the totaly change to the number
+
+    To keep the default value, and append extras, use --append-columns
                 ")
              )
+
+        .arg(Arg::new("append-columns")
+             .long("append-columns")
+             .value_name("COL,COL,...")
+             .takes_value(true).required(false)
+             .long_help("Append these columns to the default set of columns")
+        )
 
         .arg(Arg::new("object-types")
              .short('T').long("object-types")
@@ -385,13 +394,26 @@ fn main() -> Result<()> {
                 )
             });
 
+    let append_columns: Vec<Column> = if let Some(arg) = matches
+        .get_one::<String>("append-columns")
+        .map(String::as_str)
+    {
+        arg.split(',')
+            .map(|col_str| col_str.parse())
+            .collect::<Result<_>>()?
+    } else {
+        vec![]
+    };
+
     let columns: SmallVec<[Column; 12]> = matches
         .get_one::<String>("columns")
         .map(String::as_str)
         .unwrap()
         .split(',')
         .map(|col_str| col_str.parse())
+        .chain(append_columns.into_iter().map(Result::Ok))
         .collect::<Result<_>>()?;
+
     debug!("columns: {:?}", columns);
 
     let line_type = if columns.contains(&Column::ValueCountDelta) {
