@@ -153,6 +153,10 @@ Default values, in order
   strftime formatted with format `FMT` ([format syntax](https://docs.rs/chrono/latest/chrono/format/strftime/index.html#specifiers)). TZ is an entry from the [tz database](https://en.wikipedia.org/wiki/Tz_database).
   e.g. `datetime.Europe/Berlin.%m`: Convert the changetime to local time in German, and then print the [month number (`%m`)])(https://docs.rs/chrono/latest/chrono/format/strftime/index.html#specifiers:~:text=m,digits%2E).
   use `datetime.UTC.*` for UTC time.
+* `latest_value`, `latest_value`, `latest_version`, `latest_iso_datetime`, `latest_epoch_timestamp`, `latest_username`, `latest_uid`, `latest_changeset_id`: the value of these attributes on the latest version of this object
+* `latest_is_visible`: `true`  if the latest version is visible, `false` otherwise.
+* `latest_is_deleted`: `false` if the latest version is visible, `true` otherwise
+
 
 
 ### Example

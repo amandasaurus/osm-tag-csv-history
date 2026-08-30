@@ -102,6 +102,16 @@ enum Column {
 
     TagCountDelta,
     ValueCountDelta,
+
+    LatestValue,
+    LatestVersion,
+    LatestIsoDatetime,
+    LatestEpochDatetime,
+    LatestUsername,
+    LatestUid,
+    LatestChangesetId,
+    LatestIsVisible,
+    LatestIsDeleted,
 }
 
 impl FromStr for Column {
@@ -123,6 +133,9 @@ impl FromStr for Column {
             "old_version" => Ok(Column::OldVersion),
             "datetime" | "iso_datetime" | "iso_timestamp" => Ok(Column::IsoDatetime),
             "epoch" | "epoch_datetime" | "epoch_timestamp" => Ok(Column::EpochDatetime),
+            "new_datetime" | "new_iso_datetime" | "new_iso_timestamp" => Ok(Column::IsoDatetime),
+            "new_epoch" | "new_epoch_datetime" | "new_epoch_timestamp" => Ok(Column::EpochDatetime),
+
             "username" => Ok(Column::Username),
             "uid" => Ok(Column::Uid),
             "changeset_id" => Ok(Column::ChangesetId),
@@ -133,6 +146,16 @@ impl FromStr for Column {
             "value_count_delta" => Ok(Column::ValueCountDelta),
             "object_type_short" | "osm_type_short" => Ok(Column::ObjectTypeShort),
             "object_type_long" | "osm_type_long" => Ok(Column::ObjectTypeLong),
+
+            "latest_value" => Ok(Column::LatestValue),
+            "latest_version" => Ok(Column::LatestVersion),
+            "latest_iso_datetime" => Ok(Column::LatestIsoDatetime),
+            "latest_epoch_timestamp" => Ok(Column::LatestEpochDatetime),
+            "latest_username" => Ok(Column::LatestUsername),
+            "latest_uid" => Ok(Column::LatestUid),
+            "latest_changeset_id" => Ok(Column::LatestChangesetId),
+            "latest_is_visible" => Ok(Column::LatestIsVisible),
+            "latest_is_deleted" => Ok(Column::LatestIsDeleted),
 
             col => Err(anyhow::anyhow!("Unknown column value: {}", col)),
         }
@@ -177,6 +200,16 @@ impl Column {
             Column::ValueCountDelta => "value_count_delta".into(),
             Column::ObjectTypeShort => "object_type_short".into(),
             Column::ObjectTypeLong => "object_type_long".into(),
+
+            Column::LatestValue => "latest_value".into(),
+            Column::LatestVersion => "latest_version".into(),
+            Column::LatestIsoDatetime => "latest_iso_datetime".into(),
+            Column::LatestEpochDatetime => "latest_epoch_datetime".into(),
+            Column::LatestUsername => "latest_username".into(),
+            Column::LatestUid => "latest_uid".into(),
+            Column::LatestChangesetId => "lastest_changeset_id".into(),
+            Column::LatestIsVisible => "lastest_is_visible".into(),
+            Column::LatestIsDeleted => "lastest_is_deleted".into(),
         }
     }
 }
@@ -549,6 +582,9 @@ fn main() -> Result<()> {
         // Hack to get the first version to show.
         osm_objects.push(None);
         osm_objects.extend(objects_iter.map(Some));
+        ensure!(osm_objects.len() >= 2);
+
+        let latest: &StringOSMObj = osm_objects.last().unwrap().as_ref().unwrap();
 
         for last_curr in osm_objects.windows(2) {
             let last: &Option<&StringOSMObj> = &last_curr[0].as_ref();
@@ -801,7 +837,60 @@ fn main() -> Result<()> {
                                     _ => unreachable!(),
                                 });
                             }
+                            Column::LatestValue => {
+                                encode_field(
+                                    latest.tag(key).unwrap_or(""),
+                                    &mut field_bytes,
+                                    &mut utf8_bytes_buffer,
+                                );
+                            }
+                            Column::LatestVersion => {
+                                if let Some(v) = latest.version() {
+                                    write!(field_bytes, "{}", v).unwrap();
+                                }
+                            }
+                            Column::LatestIsoDatetime => {
+                                field_bytes.extend(
+                                    latest.timestamp().as_ref().unwrap().to_iso_string().bytes(),
+                                );
+                            }
+                            Column::LatestEpochDatetime => {
+                                field_bytes.extend(
+                                    latest
+                                        .timestamp()
+                                        .as_ref()
+                                        .unwrap()
+                                        .to_epoch_number()
+                                        .to_string()
+                                        .bytes(),
+                                );
+                            }
+                            Column::LatestUsername => {
+                                encode_field(
+                                    latest.user().unwrap(),
+                                    &mut field_bytes,
+                                    &mut utf8_bytes_buffer,
+                                );
+                            }
+                            Column::LatestUid => {
+                                field_bytes.extend(latest.uid().unwrap().to_string().bytes());
+                            }
+                            Column::LatestChangesetId => {
+                                field_bytes
+                                    .extend(latest.changeset_id().unwrap().to_string().bytes());
+                            }
+                            Column::LatestIsVisible => field_bytes.extend(if latest.deleted() {
+                                b"false".iter()
+                            } else {
+                                b"true".iter()
+                            }),
+                            Column::LatestIsDeleted => field_bytes.extend(if latest.deleted() {
+                                b"true".iter()
+                            } else {
+                                b"false".iter()
+                            }),
                         }
+
                         output.write_field(&field_bytes)?;
                     }
 
