@@ -10,7 +10,7 @@ keywords = ["openstreetmap", "osm"]
 
 [dependencies]
 csv = "1.4.0"
-anyhow = "1.0.103"
+anyhow = "1.0.104"
 log = "0.4.33"
 clap = "3"
 env_logger = "0.11"
@@ -19,7 +19,7 @@ do_every = "0.1.0"
 read-progress = "0.5.0"
 osmio = "0.15.0"
 rusqlite = "0.40.1"
-serde_json = "1.0.150"
+serde_json = "1.0.151"
 smol_str = "0.3.6"
 smallvec = "1.15.2"
 chrono = "0.4.45"
