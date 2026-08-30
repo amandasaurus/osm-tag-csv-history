@@ -8,6 +8,7 @@ extern crate anyhow;
 extern crate clap;
 extern crate do_every;
 extern crate flate2;
+extern crate itertools;
 extern crate read_progress;
 extern crate rusqlite;
 extern crate serde_json;
@@ -15,20 +16,21 @@ extern crate smallvec;
 extern crate smol_str;
 
 use std::borrow::Cow;
-use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::BufReader;
+use std::io::Write;
 use std::str::FromStr;
 use std::time::Instant;
 
 use clap::{Arg, ArgAction, Command, value_parser};
-use osmio::{OSMObj, OSMObjBase, OSMObjectType, OSMReader};
+use osmio::{OSMObjBase, OSMObjectType, OSMReader, obj_types::StringOSMObj};
 
 use anyhow::{Context, Result};
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use indicatif::{ProgressBar, ProgressStyle};
+use itertools::Itertools;
 use rusqlite::{Connection, OptionalExtension};
 use smallvec::SmallVec;
 use smol_str::SmolStr;
@@ -350,7 +352,9 @@ fn main() -> Result<()> {
     let progress = ProgressBar::new(file.metadata()?.len());
     progress.set_style(ProgressStyle::with_template("[{elapsed}] Processing. {percent_precise}% done {human_pos} bytes read. ETA: {eta}. Est. Total: {duration}").unwrap());
     let mut osm_obj_reader = osmio::pbf::PBFReader::new(progress.wrap_read(BufReader::new(file)));
-    let mut objects_iter = osm_obj_reader.objects();
+    let objects_iter_iter = osm_obj_reader
+        .objects()
+        .chunk_by(|o| (o.object_type(), o.id()));
 
     let only_include_keys: SmallVec<[KeyFilter; 2]> = matches
         .get_many::<String>("key")
@@ -532,64 +536,57 @@ fn main() -> Result<()> {
         output.write_record(None::<&[u8]>)?;
     }
 
-    let mut curr = objects_iter.next().unwrap();
-    let mut last: Option<osmio::obj_types::StringOSMObj> = None;
-
     let mut field_bytes = Vec::with_capacity(25);
     let mut utf8_bytes_buffer = vec![0; 4];
     let started_processing = Instant::now();
     let mut passes_uid_check;
     let mut passes_type_check;
 
-    loop {
-        passes_uid_check = if let (Some(this_uid), Some(only_include_uids)) =
-            (curr.uid(), only_include_uids.as_ref())
-        {
-            // We have uid's & we're filtering based on uids
-            only_include_uids.iter().any(|u| u == &this_uid)
-        } else {
-            true
-        };
+    let mut osm_objects = Vec::with_capacity(20);
 
-        passes_type_check = matches!(
-            (curr.object_type(), only_include_types),
-            (OSMObjectType::Node, (true, _, _))
-                | (OSMObjectType::Way, (_, true, _))
-                | (OSMObjectType::Relation, (_, _, true))
-        );
+    for (_key, objects_iter) in objects_iter_iter.into_iter() {
+        osm_objects.clear();
+        // Hack to get the first version to show.
+        osm_objects.push(None);
+        osm_objects.extend(objects_iter.map(Some));
 
-        let has_tags = match last {
-            None => curr.tagged(),
-            Some(ref l) => l.tagged() || curr.tagged(),
-        };
-        let process_object = has_tags && passes_uid_check && passes_type_check;
+        for last_curr in osm_objects.windows(2) {
+            let last: &Option<&StringOSMObj> = &last_curr[0].as_ref();
+            let curr: &StringOSMObj = last_curr[1].as_ref().unwrap();
 
-        // The 'only_include_tags' could be checked here to speed it up
-
-        if process_object {
-            let (last_tags, last_version) = match last {
-                None => (None, "".to_string()),
-                Some(ref last) => {
-                    ensure!(
-                        sorted_objects(last, &curr) == Ordering::Less,
-                        "Non sorted input"
-                    );
-                    if last.object_type() == curr.object_type() && last.id() == curr.id() {
-                        (
-                            Some(last.tags().collect::<HashMap<_, _>>()),
-                            last.version().unwrap().to_string(),
-                        )
-                    } else {
-                        (None, "".to_string())
-                    }
-                }
+            passes_uid_check = if let (Some(this_uid), Some(only_include_uids)) =
+                (curr.uid(), only_include_uids.as_ref())
+            {
+                // We have uid's & we're filtering based on uids
+                only_include_uids.iter().any(|u| u == &this_uid)
+            } else {
+                true
             };
+
+            passes_type_check = matches!(
+                (curr.object_type(), only_include_types),
+                (OSMObjectType::Node, (true, _, _))
+                    | (OSMObjectType::Way, (_, true, _))
+                    | (OSMObjectType::Relation, (_, _, true))
+            );
+
+            let has_tags = last.is_some_and(|l| l.tagged()) || curr.tagged();
+            let process_object = has_tags && passes_uid_check && passes_type_check;
+
+            // The 'only_include_tags' could be checked here to speed it up
+
+            if !process_object {
+                continue;
+            }
+
+            let mut last_tags = HashMap::with_capacity(last.map_or(0, |l| l.num_tags()));
+            if let Some(l) = last {
+                last_tags.extend(l.tags())
+            }
 
             let curr_tags: BTreeMap<_, _> = curr.tags().collect();
             let mut keys: Vec<_> = curr_tags.keys().collect();
-            if let Some(ref lt) = last_tags {
-                keys.extend(lt.keys());
-            }
+            keys.extend(last_tags.keys());
             keys.sort();
             keys.dedup();
 
@@ -605,7 +602,7 @@ fn main() -> Result<()> {
                 {
                     continue;
                 }
-                if let Some(&value) = last_tags.as_ref().and_then(|lt| lt.get(key)) {
+                if let Some(&value) = last_tags.get(key) {
                     last_value = value;
                     last_value_existed = true;
                 } else {
@@ -706,7 +703,9 @@ fn main() -> Result<()> {
                                 field_bytes.extend(curr.version().unwrap().to_string().bytes());
                             }
                             Column::OldVersion => {
-                                field_bytes.extend(last_version.as_str().bytes());
+                                if let Some(v) = last.and_then(|l| l.version()) {
+                                    write!(field_bytes, "{}", v).unwrap();
+                                }
                             }
                             Column::IsoDatetime => {
                                 field_bytes.extend(
@@ -812,14 +811,6 @@ fn main() -> Result<()> {
                 }
             }
         }
-
-        last = Some(curr);
-        curr = match objects_iter.next() {
-            None => {
-                break;
-            }
-            Some(o) => o,
-        };
     }
 
     info!(
@@ -844,13 +835,6 @@ fn encode_field(field: &str, bytes: &mut Vec<u8>, utf8_bytes_buffer: &mut [u8]) 
             bytes.extend(&utf8_bytes_buffer[..c.len_utf8()]);
         }
     }
-}
-
-fn sorted_objects(a: &impl OSMObj, b: &impl OSMObj) -> std::cmp::Ordering {
-    a.object_type()
-        .cmp(&b.object_type())
-        .then(a.id().cmp(&b.id()))
-        .then(a.version().cmp(&b.version()))
 }
 
 pub fn format_time(duration: &std::time::Duration) -> String {
