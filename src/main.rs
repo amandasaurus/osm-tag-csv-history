@@ -464,6 +464,7 @@ fn main() -> Result<()> {
         (Some("tsv"), _) => OutputFormat::TSV,
         (Some("auto"), Some("-")) => OutputFormat::CSV,
         (Some("auto"), Some(filename)) if filename.starts_with("/dev/fd/") => OutputFormat::CSV,
+        (Some("auto"), Some(filename)) if filename.starts_with("/dev/null") => OutputFormat::CSV,
         (Some("auto"), Some(filename))
             if filename.ends_with(".csv") || filename.ends_with(".csv.gz") =>
         {
@@ -488,7 +489,10 @@ fn main() -> Result<()> {
     };
     let output_writer = match matches.get_one("compression").map(String::as_str) {
         Some("auto") => {
-            if output_path == "-" || output_path.starts_with("/dev/fd/") {
+            if output_path == "-"
+                || output_path.starts_with("/dev/fd/")
+                || output_path == "/dev/null"
+            {
                 // stdout, so no compression
                 trace!("Output is '-' or a FD, no compression");
                 output_writer
@@ -530,7 +534,6 @@ fn main() -> Result<()> {
 
     let mut curr = objects_iter.next().unwrap();
     let mut last: Option<osmio::obj_types::StringOSMObj> = None;
-
 
     let mut field_bytes = Vec::with_capacity(25);
     let mut utf8_bytes_buffer = vec![0; 4];
