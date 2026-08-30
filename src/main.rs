@@ -28,7 +28,7 @@ use osmio::{OSMObj, OSMObjBase, OSMObjectType, OSMReader};
 use anyhow::{Context, Result};
 use flate2::Compression;
 use flate2::write::GzEncoder;
-use read_progress::{ReadWithSize, ReaderWithSize};
+use indicatif::{ProgressBar, ProgressStyle};
 use rusqlite::{Connection, OptionalExtension};
 use smallvec::SmallVec;
 use smol_str::SmolStr;
@@ -236,16 +236,6 @@ fn main() -> Result<()> {
              .long_help("Should the CSV output be compress?\nnone = don't compress the output\ngzip = always compress output with gzip\nauto (default) = uncompressed unless the output filename ends in .gz")
              )
 
-        .arg(Arg::new("log-frequency")
-             .long("log-frequency")
-             .value_name("SEC")
-             .value_parser(value_parser!(f32))
-             .required(false)
-             .hidden_short_help(true)
-             .default_value("10")
-             .help("with -v, how often (in sec.) to print progress messages")
-             )
-
         .arg(Arg::new("key")
              .short('k').long("k")
              .value_name("KEY")
@@ -354,12 +344,12 @@ fn main() -> Result<()> {
     let input_path = matches.get_one::<String>("input").unwrap();
     info!("Begining processing of {}", input_path);
 
-    let log_frequency: f32 = *matches.get_one("log-frequency").unwrap();
-
     let file =
         File::open(input_path).with_context(|| format!("opening input file {}", input_path))?;
-    let mut osm_obj_reader =
-        osmio::pbf::PBFReader::new(BufReader::new(ReaderWithSize::from_file(file)?));
+
+    let progress = ProgressBar::new(file.metadata()?.len());
+    progress.set_style(ProgressStyle::with_template("[{elapsed}] Processing. {percent_precise}% done {human_pos} bytes read. ETA: {eta}. Est. Total: {duration}").unwrap());
+    let mut osm_obj_reader = osmio::pbf::PBFReader::new(progress.wrap_read(BufReader::new(file)));
     let mut objects_iter = osm_obj_reader.objects();
 
     let only_include_keys: SmallVec<[KeyFilter; 2]> = matches
@@ -541,9 +531,6 @@ fn main() -> Result<()> {
     let mut curr = objects_iter.next().unwrap();
     let mut last: Option<osmio::obj_types::StringOSMObj> = None;
 
-    let mut num_objects = 0;
-
-    let mut time_counter = do_every::DoEvery::new();
 
     let mut field_bytes = Vec::with_capacity(25);
     let mut utf8_bytes_buffer = vec![0; 4];
@@ -552,25 +539,6 @@ fn main() -> Result<()> {
     let mut passes_type_check;
 
     loop {
-        // Logging output
-        num_objects += 1;
-        if num_objects % 1000 == 0 && time_counter.should_do_every_sec(log_frequency) {
-            let reader = objects_iter.inner().inner().get_ref();
-            info!(
-                "Running: {:.3}% done ETA: {} est. total: {}",
-                reader.fraction() * 100.,
-                reader
-                    .eta()
-                    .map(|d| format_time(&d))
-                    .unwrap_or_else(|| "N/A".to_string()),
-                reader
-                    .est_total_time()
-                    .map(|d| format_time(&d))
-                    .unwrap_or_else(|| "N/A".to_string()),
-            );
-            num_objects = 1;
-        }
-
         passes_uid_check = if let (Some(this_uid), Some(only_include_uids)) =
             (curr.uid(), only_include_uids.as_ref())
         {

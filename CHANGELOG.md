@@ -3,6 +3,7 @@
 * `-k`/`--key` supports prefix searching with `*`, e.g. `-k addr:*` works
 * Added `--append-columns`
 * Upgrade dependencies
+* Progress report now done always with indicatif
 
 # v0.8.0 - 2026-06-29
 
