@@ -1,8 +1,10 @@
 # Unreleased
 
-* `-k`/`--key` supports prefix searching, and substring. `-k *foo*` is substring, and `-k foo:*` for prefix
+* `-k`/`--key` supports prefix searching, and substring. `-k *foo*` is
+  substring, and `-k foo:*` for prefix
 * Added `--append-columns`
-* Added several new columns: `latest_` for details on the latest version of that object.
+* Added several new columns: `latest_` for details on the latest version of
+  that object.
 * Progress report now done always with indicatif
 * Upgrade dependencies & Internal refactoring
 
