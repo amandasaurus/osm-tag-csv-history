@@ -909,6 +909,7 @@ fn main() -> Result<()> {
         }
     }
 
+    progress.finish_and_clear();
     info!(
         "Finished in {}",
         format_time(&(Instant::now() - started_processing))
