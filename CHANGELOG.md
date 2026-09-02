@@ -1,4 +1,4 @@
-# Unreleased
+# v1.0.0rc1 - 2026-09-03
 
 * `-k`/`--key` supports prefix searching, and substring. `-k *foo*` is
   substring, and `-k foo:*` for prefix
