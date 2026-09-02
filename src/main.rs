@@ -247,7 +247,8 @@ fn main() -> Result<()> {
              )
 
         .arg(Arg::new("verbosity")
-             .short('v').multiple_occurrences(true)
+             .short('v')
+             .action(ArgAction::Count)
              .help("Increase verbosity")
              )
 
@@ -270,8 +271,8 @@ fn main() -> Result<()> {
         .arg(Arg::new("compression")
              .short('c').long("compression")
              .takes_value(true).required(false)
-             .possible_values(["none", "auto", "gzip"])
-             .hidden_short_help(true)
+             .value_parser(["none", "auto", "gzip"])
+             .hide_short_help(true)
              .default_value("auto")
              .value_name("{none,auto,gzip}")
              .help("Should the output file be compressed?")
@@ -282,7 +283,7 @@ fn main() -> Result<()> {
              .short('k').long("k")
              .value_name("KEY")
              .takes_value(true).required(false)
-             .multiple(true).number_of_values(1)
+             .action(ArgAction::Append)
              .help("Only include changes to this tag key (can be specified multiple times).")
              .long_help("Use * for prefix & substring match (e.g. `-k addr:*` matches any key that starts with the string `addr:`.\nTo search for literal `*`, use `rawkey:`, e.g. `-k rawkey:addr:*` will search for any key that's exactly `addr:*`. Use `*s*` to match for it containing `s`.")
              )
@@ -290,7 +291,7 @@ fn main() -> Result<()> {
              .short('t').long("tag")
              .value_name("KEY=VALUE")
              .takes_value(true).required(false)
-             .multiple(true).number_of_values(1)
+             .action(ArgAction::Append)
              .help("Only include changes with this KEY & VALUE (can be specified multiple times)")
              )
 
@@ -315,8 +316,8 @@ fn main() -> Result<()> {
              .long("output-format")
              .takes_value(true).required(false)
              .help("output format")
-             .possible_values(["auto", "csv", "tsv"])
-             .hidden_short_help(true)
+             .value_parser(["auto", "csv", "tsv"])
+             .hide_short_help(true)
              .default_value("auto")
              )
 
@@ -375,7 +376,7 @@ fn main() -> Result<()> {
         .get_matches();
 
     env_logger::builder()
-        .filter_level(match matches.occurrences_of("verbosity") {
+        .filter_level(match matches.get_count("verbosity") {
             0 => log::LevelFilter::Warn,
             1 => log::LevelFilter::Info,
             2 => log::LevelFilter::Debug,
