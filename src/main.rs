@@ -47,6 +47,7 @@ enum OutputFormat {
 enum KeyFilter {
     FullKey(String),
     StarPrefix(String),
+    Substring(String),
 }
 
 /// Parses from user input
@@ -55,6 +56,8 @@ impl FromStr for KeyFilter {
     fn from_str(s: &str) -> Result<Self, ()> {
         if let Some(key) = s.strip_prefix("rawkey:") {
             Ok(KeyFilter::FullKey(key.to_string()))
+        } else if let Some(substring) = s.strip_circumfix("*", "*") {
+            Ok(KeyFilter::Substring(substring.to_string()))
         } else if let Some(prefix) = s.strip_suffix("*") {
             Ok(KeyFilter::StarPrefix(prefix.to_string()))
         } else {
@@ -71,6 +74,10 @@ impl KeyFilter {
             true
         } else if let KeyFilter::StarPrefix(p) = self
             && k.starts_with(p)
+        {
+            true
+        } else if let KeyFilter::Substring(s) = self
+            && k.contains(s)
         {
             true
         } else {
@@ -277,7 +284,7 @@ fn main() -> Result<()> {
              .takes_value(true).required(false)
              .multiple(true).number_of_values(1)
              .help("Only include changes to this tag key (can be specified multiple times).")
-             .long_help("Use * for prefix match (e.g. `-k addr:*` matches any key that starts with the string `addr:`.\nTo search for literal `*`, use `rawkey:`, e.g. `-k rawkey:addr:*` will search for any key that's exactly `addr:*`.")
+             .long_help("Use * for prefix & substring match (e.g. `-k addr:*` matches any key that starts with the string `addr:`.\nTo search for literal `*`, use `rawkey:`, e.g. `-k rawkey:addr:*` will search for any key that's exactly `addr:*`. Use `*s*` to match for it containing `s`.")
              )
         .arg(Arg::new("tag")
              .short('t').long("tag")

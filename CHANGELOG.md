@@ -1,6 +1,6 @@
 # Unreleased
 
-* `-k`/`--key` supports prefix searching with `*`, e.g. `-k addr:*` works
+* `-k`/`--key` supports prefix searching, and substring. `-k *foo*` is substring, and `-k foo:*` for prefix
 * Added `--append-columns`
 * Added several new columns: `latest_` for details on the latest version of that object.
 * Progress report now done always with indicatif
